@@ -43,8 +43,8 @@ jobs:
           [IO.File]::WriteAllBytes($patchGz, [Convert]::FromBase64String($patchB64))
           python -c "import gzip, pathlib, sys; pathlib.Path(sys.argv[2]).write_bytes(gzip.decompress(pathlib.Path(sys.argv[1]).read_bytes()))" $patchGz $patch
           if ($LASTEXITCODE -ne 0) { throw "Patch decompression failed." }
-          Push-Location "buildsrc"
-          try { git apply --whitespace=nowarn $patch } finally { Pop-Location }
+          git apply --whitespace=nowarn --directory=buildsrc $patch
+          if ($LASTEXITCODE -ne 0) { throw "Applying LibraryDesk 1.0.9 patch failed." }
 
       - name: Prepare Windows icon
         shell: pwsh

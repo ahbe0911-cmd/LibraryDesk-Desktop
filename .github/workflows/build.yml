@@ -1,4 +1,4 @@
-name: Build LibraryDesk 1.0.7
+name: Build LibraryDesk 1.0.9
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Reconstruct LibraryDesk 1.0.7 source
+      - name: Reconstruct LibraryDesk base source
         shell: pwsh
         run: |
           $parts = Get-ChildItem "source-b64/part-*.txt" | Sort-Object Name
@@ -31,6 +31,25 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path "buildsrc" | Out-Null
           Expand-Archive -Path $archive -DestinationPath "buildsrc" -Force
+
+      - name: Apply LibraryDesk 1.0.9 update
+        shell: pwsh
+        run: |
+          $patchB64 = (Get-Content -Raw "updates/update-1.0.9.patch.gz.b64").Trim()
+          $patchGz = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch.gz"
+          $patch = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch"
+          [IO.File]::WriteAllBytes($patchGz, [Convert]::FromBase64String($patchB64))
+          $input = [IO.File]::OpenRead($patchGz)
+          $output = [IO.File]::Create($patch)
+          try {
+            $gzip = New-Object IO.Compression.GzipStream($input, [IO.Compression.CompressionMode]::Decompress)
+            try { $gzip.CopyTo($output) } finally { $gzip.Dispose() }
+          } finally {
+            $output.Dispose()
+            $input.Dispose()
+          }
+          Push-Location "buildsrc"
+          try { git apply --whitespace=nowarn $patch } finally { Pop-Location }
 
       - name: Prepare Windows icon
         shell: pwsh
@@ -79,13 +98,13 @@ jobs:
       - name: Upload Windows Setup
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-Setup-1.0.7-Win10-x64
-          path: buildsrc/dist/LibraryDesk-Setup-1.0.7-Win10-x64.exe
+          name: LibraryDesk-Setup-1.0.9-Win10-x64
+          path: buildsrc/dist/LibraryDesk-Setup-1.0.9-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked Windows app
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.7-win-unpacked
+          name: LibraryDesk-1.0.9-win-unpacked
           path: buildsrc/dist/win-unpacked/**
           if-no-files-found: warn

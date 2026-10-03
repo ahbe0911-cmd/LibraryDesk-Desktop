@@ -35,7 +35,9 @@ jobs:
       - name: Apply LibraryDesk 1.0.9 update
         shell: pwsh
         run: |
-          $patchB64 = (Get-Content -Raw "updates/update-1.0.9.patch.gz.b64").Trim()
+          $patchParts = Get-ChildItem "updates/final-patch-1.0.9/part-*.txt" | Sort-Object Name
+          if ($patchParts.Count -ne 7) { throw "Expected 7 final patch chunks, found $($patchParts.Count)." }
+          $patchB64 = ($patchParts | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ""
           $patchGz = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch.gz"
           $patch = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch"
           [IO.File]::WriteAllBytes($patchGz, [Convert]::FromBase64String($patchB64))

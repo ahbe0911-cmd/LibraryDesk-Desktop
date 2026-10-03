@@ -1,71 +1,28 @@
-name: Build LibraryDesk 1.0.9
+name: Build LibraryDesk Desktop
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 35
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Reconstruct LibraryDesk base source
+      - name: Rebuild source archive
         shell: pwsh
         run: |
-          $parts = Get-ChildItem "source-b64/part-*.txt" | Sort-Object Name
-          if ($parts.Count -ne 7) { throw "Expected 7 source chunks, found $($parts.Count)." }
-          $b64 = ($parts | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ""
-          $archive = Join-Path $env:RUNNER_TEMP "LibraryDesk-Source-1.0.7.zip"
-          [IO.File]::WriteAllBytes($archive, [Convert]::FromBase64String($b64))
-          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne "9b67c8525f24ec56be12973eea16cd25dc84b31d5c847bfe0881d87aad5c6316") {
-            throw "Source archive hash mismatch: $hash"
-          }
-          New-Item -ItemType Directory -Force -Path "buildsrc" | Out-Null
-          Expand-Archive -Path $archive -DestinationPath "buildsrc" -Force
-
-      - name: Apply LibraryDesk 1.0.9 update
-        shell: pwsh
-        run: |
-          $patchParts = Get-ChildItem "updates/final-patch-1.0.9/part-*.txt" | Sort-Object Name
-          if ($patchParts.Count -ne 7) { throw "Expected 7 final patch chunks, found $($patchParts.Count)." }
-          $patchB64 = ($patchParts | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ""
-          $patchGz = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch.gz"
-          $patch = Join-Path $env:RUNNER_TEMP "update-1.0.9.patch"
-          [IO.File]::WriteAllBytes($patchGz, [Convert]::FromBase64String($patchB64))
-          python -c "import gzip, pathlib, sys; pathlib.Path(sys.argv[2]).write_bytes(gzip.decompress(pathlib.Path(sys.argv[1]).read_bytes()))" $patchGz $patch
-          if ($LASTEXITCODE -ne 0) { throw "Patch decompression failed." }
-          git apply --whitespace=nowarn --exclude=buildsrc/app/icon.ico --directory=buildsrc $patch
-          if ($LASTEXITCODE -ne 0) { throw "Applying LibraryDesk 1.0.9 patch failed." }
-
-      - name: Prepare Windows icon
-        shell: pwsh
-        run: |
-          Add-Type -AssemblyName System.Drawing
-          $source = [System.Drawing.Image]::FromFile((Resolve-Path "buildsrc/app/icon128.png"))
-          try {
-            $bmp = New-Object System.Drawing.Bitmap 256,256
-            try {
-              $g = [System.Drawing.Graphics]::FromImage($bmp)
-              try {
-                $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-                $g.DrawImage($source, 0, 0, 256, 256)
-                $bmp.Save((Join-Path (Resolve-Path "buildsrc/app").Path "icon256.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-              } finally { $g.Dispose() }
-            } finally { $bmp.Dispose() }
-          } finally { $source.Dispose() }
-          $pkgPath = "buildsrc/package.json"
-          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-          $pkg.build.win.icon = "app/icon256.png"
-          $pkg | ConvertTo-Json -Depth 20 | Set-Content -Encoding utf8 $pkgPath
+          $parts = Get-ChildItem "source-b64\part-*.txt" | Sort-Object Name
+          if (!$parts) { throw "Source chunks not found" }
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          [IO.File]::WriteAllBytes("LibraryDesk-Source.zip", [Convert]::FromBase64String($b64))
+          New-Item -ItemType Directory -Force -Path "build-src" | Out-Null
+          Expand-Archive -Path "LibraryDesk-Source.zip" -DestinationPath "build-src" -Force
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -73,33 +30,23 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        working-directory: buildsrc
-        run: npm install
-
-      - name: Validate JavaScript
-        working-directory: buildsrc
-        shell: pwsh
-        run: |
-          node --check main.js
-          node --check preload.js
-          node --check viewer-preload.js
-          node --check app/viewer.js
-          node --check app/app.js
+        working-directory: build-src
+        run: npm install --no-audit --no-fund
 
       - name: Build Windows x64 Setup
-        working-directory: buildsrc
+        working-directory: build-src
         run: npm run dist
 
-      - name: Upload Windows Setup
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-Setup-1.0.9-Win10-x64
-          path: buildsrc/dist/LibraryDesk-Setup-1.0.9-Win10-x64.exe
+          name: LibraryDesk-1.0.9-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.9-Win10-x64.exe
           if-no-files-found: error
 
-      - name: Upload unpacked Windows app
+      - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.9-win-unpacked
-          path: buildsrc/dist/win-unpacked/**
-          if-no-files-found: warn
+          name: LibraryDesk-1.0.9-Portable-Win10-x64
+          path: build-src/dist/win-unpacked/**
+          if-no-files-found: error

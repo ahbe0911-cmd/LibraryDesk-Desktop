@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>مرورگر LibraryDesk</title>
+  <link rel="stylesheet" href="fonts/font.css">
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<header class="viewer-bar">
+  <div class="viewer-side viewer-side-right">
+    <div class="viewer-title">
+      <span class="viewer-dot"></span>
+      <strong id="viewerName">در حال آماده‌سازی...</strong>
+      <small id="viewerHost"></small>
+    </div>
+    <div class="viewer-shortcuts" id="shortcutRight" aria-label="میانبرهای سمت راست"></div>
+  </div>
+
+  <div class="viewer-center">
+    <button id="backBtn" title="بازگشت">→</button>
+    <button id="reloadBtn" title="بارگذاری مجدد">↻</button>
+    <div class="zoom-box">
+      <button id="zoomOut" title="کوچک‌نمایی">−</button>
+      <button id="zoomValue" title="بازگشت به ۱۰۰٪">۹۰٪</button>
+      <button id="zoomIn" title="بزرگ‌نمایی">+</button>
+      <button id="zoomFit" class="fit" title="نمایش جمع‌وجور">جاگذاری</button>
+    </div>
+    <button id="uploadBtn" title="انتخاب فایل برای بارگذاری در این صفحه">↑ فایل</button>
+    <button id="downloadsBtn" title="باز کردن پوشه دانلودها">↓ دانلودها</button>
+    <button id="forwardBtn" title="جلو">←</button>
+  </div>
+
+  <div class="viewer-side viewer-side-left">
+    <div class="viewer-shortcuts" id="shortcutLeft" aria-label="میانبرهای سمت چپ"></div>
+    <button id="closeBtn" class="close-btn" title="بستن">×</button>
+  </div>
+</header>
+<div id="loadLine" class="load-line"></div>
+<div id="viewerStatus" class="viewer-status" hidden></div>
+<webview id="siteView" partition="persist:librarydesk-web" allowpopups webpreferences="contextIsolation=yes,sandbox=yes,nodeIntegration=no"></webview>
+
+<div id="shortcutModal" class="shortcut-modal" hidden>
+  <div class="shortcut-backdrop" data-close-shortcut></div>
+  <section class="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcutDialogTitle">
+    <div class="shortcut-dialog-head">
+      <div>
+        <strong id="shortcutDialogTitle">تنظیم میانبر</strong>
+        <small>نام و لینک این دکمه فقط برای همین سایت ذخیره می‌شود.</small>
+      </div>
+      <button type="button" id="shortcutModalClose" class="shortcut-dialog-close" title="بستن">×</button>
+    </div>
+    <label class="shortcut-field">
+      <span>نام میانبر</span>
+      <input id="shortcutNameInput" maxlength="28" autocomplete="off" placeholder="مثلاً وضعیت کاربر">
+    </label>
+    <label class="shortcut-field">
+      <span>لینک</span>
+      <input id="shortcutUrlInput" dir="ltr" autocomplete="off" placeholder="https://example.com/page">
+    </label>
+    <div class="shortcut-help">می‌توانید لینک کامل یا مسیر همان سایت مثل <b>/profile</b> را وارد کنید. با کلیک روی میانبر، صفحه در همین پنجره باز می‌شود و ورود شما حفظ خواهد شد.</div>
+    <div class="shortcut-actions">
+      <button type="button" id="shortcutDeleteBtn" class="danger">پاک کردن</button>
+      <span class="shortcut-actions-spacer"></span>
+      <button type="button" id="shortcutCancelBtn" class="secondary">انصراف</button>
+      <button type="button" id="shortcutSaveBtn" class="primary">ذخیره</button>
+    </div>
+  </section>
+</div>
+
+<script src="viewer.js"></script>
+</body>
+</html>

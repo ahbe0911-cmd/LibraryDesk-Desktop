@@ -1,33 +1,70 @@
-name: Build LibraryDesk Desktop
+name: Build LibraryDesk 1.0.7
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Reconstruct LibraryDesk 1.0.7 source
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem "source-b64/part-*.txt" | Sort-Object Name
+          if ($parts.Count -ne 7) { throw "Expected 7 source chunks, found $($parts.Count)." }
+          $b64 = ($parts | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ""
+          $archive = Join-Path $env:RUNNER_TEMP "LibraryDesk-Source-1.0.7.zip"
+          [IO.File]::WriteAllBytes($archive, [Convert]::FromBase64String($b64))
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "9b67c8525f24ec56be12973eea16cd25dc84b31d5c847bfe0881d87aad5c6316") {
+            throw "Source archive hash mismatch: $hash"
+          }
+          New-Item -ItemType Directory -Force -Path "buildsrc" | Out-Null
+          Expand-Archive -Path $archive -DestinationPath "buildsrc" -Force
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
+        working-directory: buildsrc
         run: npm install
 
-      - name: Build EXE
+      - name: Validate JavaScript
+        working-directory: buildsrc
+        shell: pwsh
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check viewer-preload.js
+          node --check app/viewer.js
+          node --check app/app.js
+
+      - name: Build Windows x64 Setup
+        working-directory: buildsrc
         run: npm run dist
 
-      - name: Upload EXE
+      - name: Upload Windows Setup
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-Windows
-          path: dist/
+          name: LibraryDesk-Setup-1.0.7-Win10-x64
+          path: buildsrc/dist/LibraryDesk-Setup-1.0.7-Win10-x64.exe
+          if-no-files-found: error
+
+      - name: Upload unpacked Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: LibraryDesk-1.0.7-win-unpacked
+          path: buildsrc/dist/win-unpacked/**
+          if-no-files-found: warn

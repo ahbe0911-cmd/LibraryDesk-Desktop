@@ -1,0 +1,45 @@
+{
+  "name": "cafedesk",
+  "version": "1.0.0",
+  "description": "CafeDesk - desktop workspace for internet cafe with isolated dual web panels",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "ir.cafedesk.desktop",
+    "productName": "CafeDesk",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CafeDesk",
+      "artifactName": "CafeDesk-Setup-${version}-Win10-x64.${ext}"
+    }
+  }
+}

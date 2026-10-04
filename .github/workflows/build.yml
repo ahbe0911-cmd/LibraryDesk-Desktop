@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.12
+name: Build LibraryDesk Desktop 1.0.13
 
 on:
   push:
@@ -52,6 +52,19 @@ jobs:
           $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
           if ($pkg.version -ne "1.0.12") { throw "Clock update did not update version" }
 
+      - name: Apply 1.0.13 clock and copy update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\apply-1.0.13.ps1.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("updates\apply-1.0.13.ps1")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          & ".\updates\apply-1.0.13.ps1"
+          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.13") { throw "1.0.13 update did not update version" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -85,13 +98,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.12-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.12-Win10-x64.exe
+          name: LibraryDesk-1.0.13-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.13-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.12-Portable-Win10-x64
+          name: LibraryDesk-1.0.13-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.10
+name: Build LibraryDesk Desktop 1.0.11
 
 on:
   push:
@@ -30,8 +30,20 @@ jobs:
           $patch64 = Get-Content "updates\update-1.0.10.patch.b64" -Raw
           [IO.File]::WriteAllBytes("update-1.0.10.patch", [Convert]::FromBase64String($patch64))
           git apply --directory=build-src --whitespace=nowarn "update-1.0.10.patch"
+
+      - name: Apply 1.0.11 security update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.11.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.11.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.11.patch"
           $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.10") { throw "Patch did not update version" }
+          if ($pkg.version -ne "1.0.11") { throw "Patch did not update version" }
+          if ($pkg.devDependencies.electron -ne "44.5.1") { throw "Electron security update missing" }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -52,6 +64,13 @@ jobs:
           node --check app/app.js
           node --check app/viewer.js
 
+      - name: Dependency audit report
+        working-directory: build-src
+        shell: pwsh
+        run: |
+          npm audit --audit-level=high
+        continue-on-error: true
+
       - name: Build Windows x64 Setup
         working-directory: build-src
         run: npm run dist
@@ -59,13 +78,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.10-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.10-Win10-x64.exe
+          name: LibraryDesk-1.0.11-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.11-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.10-Portable-Win10-x64
+          name: LibraryDesk-1.0.11-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

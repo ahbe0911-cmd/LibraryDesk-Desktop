@@ -968,3 +968,205 @@ body.workspace-mode .page{
   .social-nav-btn{grid-template-columns:34px minmax(0,1fr);padding:6px}
   .social-badge{width:34px;height:34px}
 }
+
+
+/* ===== CafeDesk 1.0.7 performance, print-folder and topbar refinements ===== */
+
+/* Keep primary navigation immediately after the CafeDesk brand on the right. */
+.topbar{
+  direction:rtl;
+  justify-content:flex-start;
+}
+.brand{
+  min-width:auto;
+  flex:none;
+}
+.top-actions{
+  margin:0;
+  justify-content:flex-start;
+}
+
+/* Keep social webviews alive in the compositor instead of detach/attach flicker. */
+.social-webview{
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+  transition:opacity .12s ease;
+  will-change:opacity;
+  contain:strict;
+}
+.social-webview.hidden{
+  display:flex!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+
+/* Print folder entry. */
+.social-badge.print-folder{
+  background:linear-gradient(145deg,#20bca8,#5a8cff);
+}
+.social-badge.print-folder.small{
+  width:31px;height:31px;border-radius:9px;font-size:11px
+}
+.print-folder-nav{
+  background:linear-gradient(135deg,#e8fff9,#e8f1ff)!important;
+}
+
+/* Folder mode expands horizontally while keeping the nav on the right. */
+.social-dialog.folder-mode{
+  width:min(1180px,calc(100% - 20px));
+}
+.social-dialog.folder-mode .social-layout{
+  grid-template-columns:150px minmax(650px,1fr);
+}
+.print-folder-panel{
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  border:1px solid rgba(38,93,132,.15);
+  border-radius:20px;
+  overflow:hidden;
+  background:#f7fbff;
+  box-shadow:0 14px 36px rgba(49,92,125,.14);
+  color:#17314a
+}
+.print-folder-bar{
+  min-height:54px;
+  flex:none;
+  padding:7px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  background:linear-gradient(135deg,#eefcff,#edf3ff);
+  border-bottom:1px solid rgba(39,88,123,.12)
+}
+.print-folder-title{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:8px
+}
+.print-folder-title>div{min-width:0;display:grid;gap:1px}
+.print-folder-title strong{font-size:10px}
+.print-folder-title small{
+  max-width:550px;
+  direction:ltr;
+  text-align:right;
+  color:#6f8498;
+  font-size:8px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis
+}
+.print-folder-actions{display:flex;gap:5px;flex:none}
+.print-folder-actions button{
+  height:31px;
+  padding:0 9px;
+  border-radius:9px;
+  border:1px solid rgba(43,93,130,.14);
+  background:#fff;
+  color:#315d79;
+  font-size:8px
+}
+.print-folder-actions button:disabled{opacity:.42;cursor:default}
+.print-folder-columns,
+.print-file-row{
+  direction:rtl;
+  display:grid;
+  grid-template-columns:minmax(260px,1fr) 105px 90px 145px;
+  gap:10px;
+  align-items:center
+}
+.print-folder-columns{
+  height:33px;
+  flex:none;
+  padding:0 12px;
+  color:#70879b;
+  background:#edf5fb;
+  border-bottom:1px solid rgba(43,93,130,.10);
+  font-size:8px;
+  font-weight:800
+}
+.print-folder-list{
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  padding:4px
+}
+.print-file-row{
+  width:100%;
+  min-height:39px;
+  padding:5px 8px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#28465c;
+  text-align:right;
+  font-size:8px
+}
+.print-file-row:hover{background:#e7f3fb}
+.print-file-name{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:7px
+}
+.print-file-name strong{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-size:9px
+}
+.print-file-icon{
+  width:25px;height:25px;border-radius:7px;display:grid;place-items:center;flex:none;
+  background:linear-gradient(135deg,#c8f4ea,#d7e7ff);
+  color:#257b83
+}
+.print-folder-empty{
+  flex:1;
+  min-height:160px;
+  display:grid;
+  place-items:center;
+  color:#71879c;
+  font-size:10px
+}
+
+/* Full-page capture format chooser. */
+.screenshot-format-dialog{width:min(480px,calc(100% - 24px))}
+.screenshot-format-card p{margin:0 0 13px;color:#9fb1c2;font-size:9px}
+.screenshot-format-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.capture-format{
+  min-height:86px;
+  border-radius:15px;
+  border:1px solid rgba(255,255,255,.09);
+  display:grid;
+  place-items:center;
+  gap:2px;
+  color:#fff
+}
+.capture-format strong{font:800 20px/1 "Segoe UI",sans-serif}
+.capture-format small{font-size:8px;color:rgba(255,255,255,.78)}
+.capture-format.jpg{background:linear-gradient(145deg,#1aa893,#2879b8)}
+.capture-format.pdf{background:linear-gradient(145deg,#d6586e,#a94367)}
+
+/* Slightly tighter actions when many browser tools are present. */
+.pane-actions{gap:3px}
+.pane-actions button{padding:0 6px}
+@media(max-width:1380px){
+  .pane-actions button{min-width:27px;padding:0 5px}
+  .pane-actions .change-site-btn{padding:0 7px}
+}
+
+/* Social loading polish. */
+.social-webview-host{
+  isolation:isolate;
+  transform:translateZ(0);
+}
+.social-browser{
+  transform:translateZ(0);
+  backface-visibility:hidden;
+}

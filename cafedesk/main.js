@@ -3,6 +3,8 @@ const path = require('path');
 
 app.setName('CafeDesk');
 
+const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
 function clampZoom(percent) {
   const value = Number(percent);
   if (!Number.isFinite(value)) return 1;
@@ -55,6 +57,8 @@ app.whenReady().then(() => {
 
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() !== 'webview') return;
+
+    contents.setUserAgent(DESKTOP_UA);
 
     contents.setWindowOpenHandler(({ url }) => {
       if (/^https?:/i.test(url)) contents.loadURL(url).catch(() => {});

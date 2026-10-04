@@ -16,7 +16,9 @@ contextBridge.exposeInMainWorld('cafeDesk', {
   openDownloadItem: (targetPath) => ipcRenderer.invoke('files:open-download-item', String(targetPath || '')),
   showDownloadItem: (targetPath) => ipcRenderer.invoke('files:show-download-item', String(targetPath || '')),
   openDownloadRoot: () => ipcRenderer.invoke('files:open-download-root'),
-  showFileContextMenu: (targetPath, isDirectory) => ipcRenderer.invoke('files:context-menu', String(targetPath || ''), Boolean(isDirectory)),
+  showFileContextMenu: (targetPaths) => ipcRenderer.invoke('files:context-menu', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
+  printDownloadItems: (targetPaths) => ipcRenderer.invoke('files:print-download-items', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
+  repairSocialApp: (key) => ipcRenderer.invoke('social:repair', String(key || '')),
   getMediaSourceId: (webContentsId) => ipcRenderer.invoke('capture:get-media-source-id', Number(webContentsId)),
   startRecordingFile: (label) => ipcRenderer.invoke('capture:recording-start', String(label || '')),
   appendRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke('capture:recording-chunk', String(sessionId || ''), chunk),
@@ -24,6 +26,11 @@ contextBridge.exposeInMainWorld('cafeDesk', {
   abortRecordingFile: (sessionId) => ipcRenderer.invoke('capture:recording-abort', String(sessionId || '')),
   onGuestOpenTab: (callback) => {
     ipcRenderer.on('cafedesk:guest-open-tab', (_event, payload) => {
+      if (typeof callback === 'function') callback(payload);
+    });
+  },
+  onDownloadStatus: (callback) => {
+    ipcRenderer.on('cafedesk:download-status', (_event, payload) => {
       if (typeof callback === 'function') callback(payload);
     });
   }

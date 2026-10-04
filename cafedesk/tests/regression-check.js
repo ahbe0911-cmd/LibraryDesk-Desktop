@@ -73,3 +73,26 @@ assert(html.includes('id="screenshotFormatDialog"'), 'JPG/PDF screenshot chooser
 assert(css.includes("justify-content:flex-start") && css.includes(".topbar"), 'topbar controls must sit beside CafeDesk on the right');
 
 console.log('CafeDesk 1.0.7 optimization checks passed.');
+
+
+assert(!app.includes("setTimeout(prewarmSocialViews, 1400)"), 'social views must not initialize inside the closed dialog');
+assert(app.includes("recoverSocialView"), 'social white-screen recovery missing');
+assert(app.includes("reloadIgnoringCache"), 'social recovery must bypass stale cache');
+assert(main.includes("social:repair"), 'social cache/service-worker repair IPC missing');
+assert(css.includes("opacity:0!important") && !css.includes("visibility:hidden!important;\n  opacity:0!important"), 'hidden social views should stay paintable instead of visibility:hidden');
+assert(preload.includes("onDownloadStatus"), 'download completion notification bridge missing');
+assert(app.includes("showToast('✓ ذخیره شد:"), 'green saved toast missing');
+assert(main.includes("files:print-download-items"), 'multi-file Windows print IPC missing');
+assert(main.includes("invokeWindowsPrint"), 'Windows shell print helper missing');
+assert(html.includes('id="printViewDetailsBtn"') && html.includes('id="printViewListBtn"') && html.includes('id="printViewIconsBtn"'), 'Explorer view mode controls missing');
+assert(app.includes("printFolderSelection"), 'multi-select Explorer behavior missing');
+assert(guestPreload.includes("function eblaghStage()"), 'Eblagh stage detector missing');
+assert(guestPreload.includes("stage === 'otp'"), 'Eblagh OTP exclusion missing');
+assert(main.includes("quality: 100"), 'JPG screenshot quality must be 100');
+assert(app.includes("maxFrameRate: 60"), 'screen recorder must request 60 fps');
+assert(app.includes("videoBitsPerSecond: 10000000"), 'screen recorder bitrate must be 10 Mbps');
+assert(app.includes("enableRecordingCursor"), 'recording cursor overlay missing');
+assert(app.includes("record-stop-square"), 'larger recorder icon state missing');
+assert(css.includes(".pane-icon-btn svg"), 'larger SVG browser action icons missing');
+
+console.log('CafeDesk 1.0.8 reliability and UX checks passed.');

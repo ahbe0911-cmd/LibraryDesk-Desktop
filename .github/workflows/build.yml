@@ -1,9 +1,9 @@
-name: Build LibraryDesk Desktop 1.0.17
+name: Build CafeDesk 1.0.0
 
 on:
   push:
     branches:
-      - main
+      - cafedesk
   workflow_dispatch:
 
 jobs:
@@ -14,125 +14,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Rebuild source archive
-        shell: pwsh
-        run: |
-          $parts = Get-ChildItem "source-b64\part-*.txt" | Sort-Object Name
-          if (!$parts) { throw "Source chunks not found" }
-          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
-          [IO.File]::WriteAllBytes("LibraryDesk-Source.zip", [Convert]::FromBase64String($b64))
-          New-Item -ItemType Directory -Force -Path "build-src" | Out-Null
-          Expand-Archive -Path "LibraryDesk-Source.zip" -DestinationPath "build-src" -Force
-
-      - name: Apply 1.0.10 update
-        shell: pwsh
-        run: |
-          $patch64 = Get-Content "updates\update-1.0.10.patch.b64" -Raw
-          [IO.File]::WriteAllBytes("update-1.0.10.patch", [Convert]::FromBase64String($patch64))
-          git apply --directory=build-src --whitespace=nowarn "update-1.0.10.patch"
-
-      - name: Apply 1.0.11 security update
-        shell: pwsh
-        run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.11.patch.gz.b64" -Raw))
-          $input = New-Object IO.MemoryStream(,$payload)
-          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("update-1.0.11.patch")
-          $gzip.CopyTo($output)
-          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --directory=build-src --whitespace=nowarn "update-1.0.11.patch"
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.11") { throw "Patch did not update version" }
-          if ($pkg.devDependencies.electron -ne "44.5.1") { throw "Electron security update missing" }
-
-      - name: Apply 1.0.12 realistic clock update
-        shell: pwsh
-        run: |
-          & ".\updates\apply-1.0.12.ps1"
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.12") { throw "Clock update did not update version" }
-
-      - name: Apply 1.0.13 clock update
-        shell: pwsh
-        run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\apply-1.0.13.ps1.gz.b64" -Raw))
-          $input = New-Object IO.MemoryStream(,$payload)
-          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("updates\apply-1.0.13.ps1")
-          $gzip.CopyTo($output)
-          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          & ".\updates\apply-1.0.13.ps1"
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.13") { throw "1.0.13 update did not update version" }
-
-      - name: Apply clean 1.0.16 dashboard update
-        shell: pwsh
-        run: |
-          $parts = Get-ChildItem "updates\1.0.16\part-*.txt" | Sort-Object Name
-          if (!$parts) { throw "1.0.16 patch chunks not found" }
-          $patch64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
-          $payload = [Convert]::FromBase64String($patch64)
-          $input = New-Object IO.MemoryStream(,$payload)
-          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("update-1.0.16.patch")
-          $gzip.CopyTo($output)
-          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --exclude=build-src/package.json --directory=build-src --whitespace=nowarn "update-1.0.16.patch"
-          if ($LASTEXITCODE -ne 0) { throw "1.0.16 patch failed" }
-          $pkgPath = "build-src\package.json"
-          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-          $pkg.version = "1.0.16"
-          $pkg.description = "LibraryDesk Windows — horizontal dashboard, secure loan-change card, copy badges removed"
-          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
-          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.16") { throw "1.0.16 version update failed" }
-
-      - name: Apply 1.0.17 visual-only redesign
-        shell: pwsh
-        run: |
-          & ".\updates\apply-1.0.17.ps1"
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.17") { throw "1.0.17 visual update did not update version" }
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install dependencies
-        working-directory: build-src
+        working-directory: cafedesk
         run: npm install --no-audit --no-fund
 
       - name: Validate JavaScript
-        working-directory: build-src
+        working-directory: cafedesk
         shell: pwsh
         run: |
           node --check main.js
           node --check preload.js
-          node --check viewer-preload.js
           node --check app/app.js
-          node --check app/viewer.js
 
       - name: Dependency audit report
-        working-directory: build-src
+        working-directory: cafedesk
         shell: pwsh
         run: npm audit --audit-level=high
         continue-on-error: true
 
       - name: Build Windows x64 Setup
-        working-directory: build-src
+        working-directory: cafedesk
         run: npm run dist
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.17-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.17-Win10-x64.exe
+          name: CafeDesk-1.0.0-Setup-Win10-x64
+          path: cafedesk/dist/CafeDesk-Setup-1.0.0-Win10-x64.exe
           if-no-files-found: error
 
-      - name: Upload unpacked portable
+      - name: Upload portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.17-Portable-Win10-x64
-          path: build-src/dist/win-unpacked/**
+          name: CafeDesk-1.0.0-Portable-Win10-x64
+          path: cafedesk/dist/win-unpacked/**
           if-no-files-found: error

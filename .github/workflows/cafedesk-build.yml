@@ -34,29 +34,20 @@ jobs:
             Where-Object { $_.Extension -ieq ".ttf" -and $_.Name -match "Rooznameh" } |
             Select-Object -First 1
 
-          $vaz = Get-ChildItem "legacy-src" -Recurse -File |
-            Where-Object { $_.Extension -ieq ".ttf" -and $_.Name -match "Vazir" } |
-            Sort-Object @{Expression={ if ($_.Name -match "Regular") {0} else {1} }}, Name |
-            Select-Object -First 1
-
           if (!$roo) {
             Write-Host "Font candidates:"
             Get-ChildItem "legacy-src" -Recurse -File | Where-Object { $_.Extension -ieq ".ttf" } | Select-Object FullName
             throw "A-Rooznameh font not found"
           }
 
-          if (!$vaz) {
-            Write-Host "Font candidates:"
-            Get-ChildItem "legacy-src" -Recurse -File | Where-Object { $_.Extension -ieq ".ttf" } | Select-Object FullName
-            throw "Vazir/Vazirmatn font not found"
-          }
-
           New-Item -ItemType Directory -Force -Path "cafedesk\app\fonts" | Out-Null
           Copy-Item $roo.FullName "cafedesk\app\fonts\A-Rooznameh.ttf" -Force
-          Copy-Item $vaz.FullName "cafedesk\app\fonts\Vazirmatn-Regular.ttf" -Force
+
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf" -OutFile "cafedesk\app\fonts\Vazirmatn-Regular.ttf"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/OFL.txt" -OutFile "cafedesk\app\fonts\Vazirmatn-OFL.txt"
 
           Write-Host "A-Rooznameh:" $roo.FullName
-          Write-Host "Vazirmatn:" $vaz.FullName
+          Write-Host "Vazirmatn: official rastikerdar/vazirmatn"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

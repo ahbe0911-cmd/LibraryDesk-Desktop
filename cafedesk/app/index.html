@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src https: http:; connect-src https: http:;">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CafeDesk</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="backdrop"></div>
+
+  <header class="topbar glass">
+    <div class="brand">
+      <div class="brand-icon">C</div>
+      <div>
+        <h1>CafeDesk</h1>
+        <p>میزکار کافی‌نت</p>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
+      <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
+      <span class="version" id="versionText">v1.0.0</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <section id="dashboardView" class="dashboard-view">
+      <div class="hero-grid">
+        <aside class="clock-card glass">
+          <div class="section-kicker">ساعت کافی‌نت</div>
+          <div class="clock-shell" aria-label="ساعت آنالوگ">
+            <div class="clock">
+              <span class="tick-ring"></span>
+              <span class="num n12">12</span><span class="num n1">1</span><span class="num n2">2</span>
+              <span class="num n3">3</span><span class="num n4">4</span><span class="num n5">5</span>
+              <span class="num n6">6</span><span class="num n7">7</span><span class="num n8">8</span>
+              <span class="num n9">9</span><span class="num n10">10</span><span class="num n11">11</span>
+              <span id="hourHand" class="hand hour"></span>
+              <span id="minuteHand" class="hand minute"></span>
+              <span id="secondHand" class="hand second"></span>
+              <span class="clock-pin"></span>
+            </div>
+          </div>
+          <div class="clock-caption">ساده، زنده و همیشه در دسترس</div>
+        </aside>
+
+        <section class="sites-card glass">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">دسترسی سریع</div>
+              <h2>سایت‌ها</h2>
+              <p>سایت‌های پرکاربرد را با نام دلخواه ذخیره کنید.</p>
+            </div>
+            <button id="addSiteBtn" class="primary-btn" type="button">＋ افزودن سایت</button>
+          </div>
+
+          <div id="sitesGrid" class="sites-grid"></div>
+          <div id="sitesEmpty" class="empty-state">
+            هنوز سایتی اضافه نشده است.
+          </div>
+        </section>
+
+        <section class="tools-card glass">
+          <div class="section-head compact">
+            <div>
+              <div class="section-kicker">ابزارهای سریع</div>
+              <h2>ابزارها</h2>
+            </div>
+          </div>
+
+          <div class="tools-grid">
+            <article class="tool calculator">
+              <div class="tool-title">
+                <span class="tool-dot cyan"></span>
+                <strong>ماشین‌حساب</strong>
+              </div>
+              <input id="calcDisplay" class="calc-display" value="0" readonly />
+              <div class="calc-keys" id="calcKeys">
+                <button data-calc="C">C</button>
+                <button data-calc="⌫">⌫</button>
+                <button data-calc="%">%</button>
+                <button class="op" data-calc="÷">÷</button>
+
+                <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button>
+                <button class="op" data-calc="×">×</button>
+
+                <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button>
+                <button class="op" data-calc="-">−</button>
+
+                <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button>
+                <button class="op" data-calc="+">+</button>
+
+                <button data-calc="0" class="wide">0</button><button data-calc=".">.</button>
+                <button class="equal" data-calc="=">=</button>
+              </div>
+            </article>
+
+            <article class="tool password">
+              <div class="tool-title">
+                <span class="tool-dot pink"></span>
+                <strong>رمزساز</strong>
+              </div>
+              <label class="field-label" for="passwordLength">طول رمز</label>
+              <div class="range-row">
+                <input id="passwordLength" type="range" min="10" max="32" value="16" />
+                <span id="passwordLengthValue">16</span>
+              </div>
+              <div class="password-box">
+                <input id="passwordOutput" readonly />
+                <button id="copyPasswordBtn" class="mini-btn" type="button">کپی</button>
+              </div>
+              <label class="switch-row">
+                <input id="autoCopyPassword" type="checkbox" checked />
+                <span>کپی خودکار بعد از ساخت رمز</span>
+              </label>
+              <button id="generatePasswordBtn" class="accent-btn" type="button">ساخت رمز جدید</button>
+              <div id="copyStatus" class="status-line"></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="workspaceView" class="workspace-view hidden">
+      <div class="workspace-top glass">
+        <div>
+          <div class="section-kicker">نمای دوگانه مستقل</div>
+          <h2>دو پنجره هم‌زمان</h2>
+          <p>هر سمت Session جدا دارد؛ حتی اگر یک سایت را دو بار باز کنید.</p>
+        </div>
+        <button id="backDashboardBtn" class="ghost-btn" type="button">بازگشت به کارت‌ها</button>
+      </div>
+
+      <div class="dual-shell">
+        <section class="browser-pane glass active-pane" data-pane="right">
+          <div class="pane-toolbar">
+            <button class="pane-select" data-activate-pane="right" type="button">
+              <span class="pane-light"></span>
+              <span id="rightTitle">پنجره راست</span>
+            </button>
+            <div class="pane-actions">
+              <button data-browser-action="back" data-side="right" title="عقب">‹</button>
+              <button data-browser-action="forward" data-side="right" title="جلو">›</button>
+              <button data-browser-action="reload" data-side="right" title="بارگذاری مجدد">↻</button>
+              <button data-browser-action="home" data-side="right" title="بستن صفحه">×</button>
+            </div>
+          </div>
+          <div class="webview-slot" id="rightSlot">
+            <div class="pane-placeholder">
+              <strong>پنجره راست</strong>
+              <span>یک کارت سایت را انتخاب کنید.</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="split-line"></div>
+
+        <section class="browser-pane glass" data-pane="left">
+          <div class="pane-toolbar">
+            <button class="pane-select" data-activate-pane="left" type="button">
+              <span class="pane-light"></span>
+              <span id="leftTitle">پنجره چپ</span>
+            </button>
+            <div class="pane-actions">
+              <button data-browser-action="back" data-side="left" title="عقب">‹</button>
+              <button data-browser-action="forward" data-side="left" title="جلو">›</button>
+              <button data-browser-action="reload" data-side="left" title="بارگذاری مجدد">↻</button>
+              <button data-browser-action="home" data-side="left" title="بستن صفحه">×</button>
+            </div>
+          </div>
+          <div class="webview-slot" id="leftSlot">
+            <div class="pane-placeholder">
+              <strong>پنجره چپ</strong>
+              <span>برای فعال شدن روی این سمت کلیک کنید.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="workspace-sites glass">
+        <div>
+          <strong>باز کردن سایت در پنجره انتخاب‌شده</strong>
+          <span>روی کارت بزنید؛ پنجره فعال با حاشیه روشن مشخص است.</span>
+        </div>
+        <div id="workspaceSites" class="workspace-site-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="siteDialog" class="site-dialog">
+    <form method="dialog" id="siteForm" class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">سایت جدید</div>
+          <h3>افزودن سایت</h3>
+        </div>
+        <button class="dialog-close" value="cancel" type="submit">×</button>
+      </div>
+
+      <label>
+        <span>نام سایت</span>
+        <input id="siteNameInput" maxlength="42" autocomplete="off" placeholder="مثلاً خدمات دولت" required />
+      </label>
+
+      <label>
+        <span>لینک سایت</span>
+        <input id="siteUrlInput" autocomplete="off" inputmode="url" placeholder="https://example.com" required />
+      </label>
+
+      <div id="siteFormError" class="form-error"></div>
+
+      <div class="dialog-actions">
+        <button class="ghost-btn" value="cancel" type="submit">انصراف</button>
+        <button id="saveSiteBtn" class="primary-btn" value="default" type="button">ذخیره سایت</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./app.js"></script>
+</body>
+</html>

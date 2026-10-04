@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "..\..\build-src")
+$root = Resolve-Path (Join-Path $PSScriptRoot "..\build-src")
 $nl = [Environment]::NewLine
 
 function ReadUtf8([string]$path) {

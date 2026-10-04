@@ -1207,7 +1207,124 @@
   });
   closePasswordManagerBtn?.addEventListener('click', () => passwordManagerDialog.close());
 
-  function ensureSocialView(key) {
+  function socialHealthState(key) {
+    if (!socialHealth.has(key)) {
+      socialHealth.set(key, {
+        failures: 0,
+        recovering: false,
+        lastRecoveryAt: 0,
+        checkTimer: null,
+        ready: false
+      });
+    }
+    return socialHealth.get(key);
+  }
+
+  function setSocialStatus(message, { retry = false, loading = true } = {}) {
+    if (!socialStatusOverlay || socialDialog?.classList.contains('folder-mode')) return;
+    socialStatusText.textContent = message || '';
+    socialStatusOverlay.classList.toggle('hidden', !message);
+    socialStatusOverlay.classList.toggle('loading', Boolean(loading));
+    socialRetryBtn?.classList.toggle('hidden', !retry);
+  }
+
+  function hideSocialStatus() {
+    socialStatusOverlay?.classList.add('hidden');
+    socialRetryBtn?.classList.add('hidden');
+  }
+
+  async function inspectSocialView(key, view) {
+    if (!view || view.classList.contains('destroyed-social-view')) return false;
+    try {
+      const state = await view.executeJavaScript(`(() => {
+        const body = document.body;
+        const root = document.querySelector('#root,#app,[data-reactroot],main');
+        const textLength = String(body?.innerText || '').trim().length;
+        const elementCount = body?.querySelectorAll('*').length || 0;
+        const bodyHtmlLength = String(body?.innerHTML || '').length;
+        const rootChildren = root?.children?.length || 0;
+        return {
+          readyState: document.readyState,
+          textLength,
+          elementCount,
+          bodyHtmlLength,
+          rootChildren,
+          bodyWidth: body?.getBoundingClientRect?.().width || 0,
+          bodyHeight: body?.getBoundingClientRect?.().height || 0
+        };
+      })()`, true);
+
+      const blank = !state ||
+        state.bodyWidth < 40 ||
+        state.bodyHeight < 40 ||
+        (
+          state.textLength < 3 &&
+          state.rootChildren === 0 &&
+          state.elementCount < 8 &&
+          state.bodyHtmlLength < 2200
+        );
+
+      if (!blank) {
+        const health = socialHealthState(key);
+        health.failures = 0;
+        health.recovering = false;
+        health.ready = true;
+        if (key === activeSocial) hideSocialStatus();
+        return true;
+      }
+    } catch {}
+
+    await recoverSocialView(key, 'صفحه سفید یا ناقص تشخیص داده شد');
+    return false;
+  }
+
+  async function recoverSocialView(key, reason = 'بارگذاری کامل نشد', forceRecreate = false) {
+    const health = socialHealthState(key);
+    const now = Date.now();
+    if (health.recovering && now - health.lastRecoveryAt < 3500) return;
+
+    health.recovering = true;
+    health.lastRecoveryAt = now;
+    health.failures += 1;
+    health.ready = false;
+
+    if (key === activeSocial) {
+      setSocialStatus('در حال بازیابی ' + socialApps[key].name + '…', { loading: true });
+    }
+
+    let view = socialViews.get(key);
+    const hardRepair = forceRecreate || health.failures >= 2;
+
+    if (hardRepair) {
+      try { await window.cafeDesk.repairSocialApp(key); } catch {}
+      if (view) {
+        try {
+          view.classList.add('destroyed-social-view');
+          view.remove();
+        } catch {}
+      }
+      socialViews.delete(key);
+      view = ensureSocialView(key, true);
+      if (key === activeSocial && view) view.classList.remove('hidden');
+    } else {
+      try { view?.reloadIgnoringCache(); } catch {
+        try { view?.reload(); } catch {}
+      }
+    }
+
+    setTimeout(() => {
+      const next = socialViews.get(key);
+      if (next) inspectSocialView(key, next);
+    }, hardRepair ? 2600 : 1800);
+  }
+
+  function scheduleSocialHealthCheck(key, view, delay = 1000) {
+    const health = socialHealthState(key);
+    clearTimeout(health.checkTimer);
+    health.checkTimer = setTimeout(() => inspectSocialView(key, view), delay);
+  }
+
+  function ensureSocialView(key, recreated = false) {
     if (socialViews.has(key)) return socialViews.get(key);
 
     const appInfo = socialApps[key];
@@ -1220,9 +1337,50 @@
     view.setAttribute('src', appInfo.url);
     view.setAttribute('allowpopups', 'true');
     view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,backgroundThrottling=no');
-    view.addEventListener('dom-ready', () => syncSavedCredentials(view));
-    view.addEventListener('did-navigate', () => syncSavedCredentials(view));
+    view.setAttribute('aria-label', appInfo.name);
+
+    const health = socialHealthState(key);
+    if (recreated) health.recovering = false;
+
+    view.addEventListener('did-start-loading', () => {
+      health.ready = false;
+      if (key === activeSocial) {
+        setSocialStatus('در حال بارگذاری ' + appInfo.name + '…', { loading: true });
+      }
+    });
+
+    view.addEventListener('dom-ready', () => {
+      syncSavedCredentials(view);
+      scheduleSocialHealthCheck(key, view, 900);
+    });
+
+    view.addEventListener('did-stop-loading', () => {
+      scheduleSocialHealthCheck(key, view, 700);
+    });
+
+    view.addEventListener('did-navigate', () => {
+      syncSavedCredentials(view);
+      scheduleSocialHealthCheck(key, view, 900);
+    });
+
+    view.addEventListener('did-fail-load', (event) => {
+      if (event.errorCode === -3) return;
+      if (key === activeSocial) {
+        setSocialStatus('بارگذاری انجام نشد؛ CafeDesk در حال تلاش مجدد است.', { loading: true });
+      }
+      recoverSocialView(key, event.errorDescription || 'خطای بارگذاری');
+    });
+
+    view.addEventListener('render-process-gone', () => {
+      recoverSocialView(key, 'پردازش صفحه متوقف شد', true);
+    });
+
+    view.addEventListener('unresponsive', () => {
+      recoverSocialView(key, 'صفحه پاسخ نمی‌دهد', true);
+    });
+
     view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event, null));
+
     socialWebviewHost.append(view);
     socialViews.set(key, view);
     return view;
@@ -1250,7 +1408,11 @@
     });
 
     const view = ensureSocialView(key);
-    if (view) view.classList.remove('hidden');
+    if (view) {
+      view.classList.remove('hidden');
+      setSocialStatus('در حال آماده‌سازی ' + socialApps[key].name + '…', { loading: true });
+      setTimeout(() => inspectSocialView(key, view), 420);
+    }
   }
 
   function formatFileSize(bytes) {
@@ -1267,11 +1429,142 @@
     return ext ? ext + ' File' : 'File';
   }
 
+  function fileVisual(item) {
+    if (item.isDirectory) return { icon: '📁', className: 'folder' };
+    const ext = String(item.extension || '').toLowerCase();
+    if (['.jpg','.jpeg','.png','.gif','.bmp','.webp','.tif','.tiff'].includes(ext)) return { icon: '🖼', className: 'image' };
+    if (ext === '.pdf') return { icon: 'PDF', className: 'pdf' };
+    if (['.doc','.docx'].includes(ext)) return { icon: 'W', className: 'word' };
+    if (['.xls','.xlsx','.csv'].includes(ext)) return { icon: 'X', className: 'excel' };
+    if (['.mp4','.mkv','.avi','.webm','.mov'].includes(ext)) return { icon: '▶', className: 'video' };
+    return { icon: '▤', className: 'file' };
+  }
+
+  function setPrintFolderViewMode(mode) {
+    const safeMode = ['details','list','icons'].includes(mode) ? mode : 'details';
+    printFolderViewMode = safeMode;
+    localStorage.setItem('cafedesk.printViewMode.v1', safeMode);
+
+    printFolderList?.classList.remove('view-details','view-list','view-icons');
+    printFolderList?.classList.add('view-' + safeMode);
+    printFolderColumns?.classList.toggle('hidden', safeMode !== 'details');
+
+    printViewDetailsBtn?.classList.toggle('active', safeMode === 'details');
+    printViewListBtn?.classList.toggle('active', safeMode === 'list');
+    printViewIconsBtn?.classList.toggle('active', safeMode === 'icons');
+  }
+
+  function updatePrintSelectionUi() {
+    const count = printFolderSelection.size;
+    if (printSelectedCount) printSelectedCount.textContent = faNumber(count) + ' انتخاب';
+
+    printFolderList?.querySelectorAll('.print-file-row').forEach((row) => {
+      row.classList.toggle('selected', printFolderSelection.has(row.dataset.path));
+    });
+  }
+
+  function selectPrintFolderItem(index, event) {
+    const item = printFolderItems[index];
+    if (!item) return;
+
+    if (event.shiftKey && printFolderLastIndex >= 0) {
+      const start = Math.min(printFolderLastIndex, index);
+      const end = Math.max(printFolderLastIndex, index);
+      if (!event.ctrlKey) printFolderSelection.clear();
+      for (let i = start; i <= end; i += 1) {
+        printFolderSelection.add(printFolderItems[i].path);
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      if (printFolderSelection.has(item.path)) printFolderSelection.delete(item.path);
+      else printFolderSelection.add(item.path);
+      printFolderLastIndex = index;
+    } else {
+      printFolderSelection.clear();
+      printFolderSelection.add(item.path);
+      printFolderLastIndex = index;
+    }
+
+    updatePrintSelectionUi();
+  }
+
+  function renderPrintFolderItems() {
+    printFolderList.replaceChildren();
+    printFolderEmpty?.classList.toggle('hidden', printFolderItems.length > 0);
+    setPrintFolderViewMode(printFolderViewMode);
+
+    printFolderItems.forEach((item, index) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'print-file-row';
+      row.title = item.path;
+      row.dataset.path = item.path;
+      row.dataset.index = String(index);
+
+      const nameCell = document.createElement('span');
+      nameCell.className = 'print-file-name';
+
+      const visual = fileVisual(item);
+      const icon = document.createElement('span');
+      icon.className = 'print-file-icon ' + visual.className;
+      icon.textContent = visual.icon;
+
+      const name = document.createElement('strong');
+      name.textContent = item.name;
+      nameCell.append(icon, name);
+
+      const type = document.createElement('span');
+      type.className = 'print-file-type';
+      type.textContent = fileTypeLabel(item);
+
+      const size = document.createElement('span');
+      size.className = 'print-file-size';
+      size.textContent = item.isDirectory ? '—' : formatFileSize(item.size);
+
+      const date = document.createElement('span');
+      date.className = 'print-file-date';
+      date.textContent = item.mtimeMs
+        ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.mtimeMs))
+        : '—';
+
+      row.append(nameCell, type, size, date);
+
+      row.addEventListener('click', (event) => {
+        selectPrintFolderItem(index, event);
+      });
+
+      row.addEventListener('dblclick', async () => {
+        if (item.isDirectory) {
+          await loadPrintFolder(item.path);
+        } else {
+          await window.cafeDesk.openDownloadItem(item.path);
+        }
+      });
+
+      row.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        if (!printFolderSelection.has(item.path)) {
+          printFolderSelection.clear();
+          printFolderSelection.add(item.path);
+          printFolderLastIndex = index;
+          updatePrintSelectionUi();
+        }
+        window.cafeDesk.showFileContextMenu(Array.from(printFolderSelection));
+      });
+
+      printFolderList.append(row);
+    });
+
+    updatePrintSelectionUi();
+  }
+
   async function loadPrintFolder(requestedPath = '') {
     if (!printFolderList) return;
 
     printFolderList.replaceChildren();
     printFolderEmpty?.classList.add('hidden');
+    printFolderSelection.clear();
+    printFolderLastIndex = -1;
+    updatePrintSelectionUi();
 
     try {
       const data = await window.cafeDesk.listDownloadFolder(requestedPath || '');
@@ -1281,53 +1574,10 @@
       printFolderBackBtn.disabled = !data.parent;
       printFolderBackBtn.dataset.parent = data.parent || '';
 
-      const items = Array.isArray(data.entries) ? data.entries : [];
-      printFolderEmpty?.classList.toggle('hidden', items.length > 0);
-
-      items.forEach((item) => {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'print-file-row';
-        row.title = item.path;
-
-        const nameCell = document.createElement('span');
-        nameCell.className = 'print-file-name';
-        const icon = document.createElement('span');
-        icon.className = 'print-file-icon';
-        icon.textContent = item.isDirectory ? '▰' : '▤';
-        const name = document.createElement('strong');
-        name.textContent = item.name;
-        nameCell.append(icon, name);
-
-        const type = document.createElement('span');
-        type.textContent = fileTypeLabel(item);
-
-        const size = document.createElement('span');
-        size.textContent = item.isDirectory ? '—' : formatFileSize(item.size);
-
-        const date = document.createElement('span');
-        date.textContent = item.mtimeMs
-          ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.mtimeMs))
-          : '—';
-
-        row.append(nameCell, type, size, date);
-
-        row.addEventListener('dblclick', async () => {
-          if (item.isDirectory) {
-            await loadPrintFolder(item.path);
-          } else {
-            await window.cafeDesk.openDownloadItem(item.path);
-          }
-        });
-
-        row.addEventListener('contextmenu', (event) => {
-          event.preventDefault();
-          window.cafeDesk.showFileContextMenu(item.path, item.isDirectory);
-        });
-
-        printFolderList.append(row);
-      });
+      printFolderItems = Array.isArray(data.entries) ? data.entries : [];
+      renderPrintFolderItems();
     } catch (error) {
+      printFolderItems = [];
       printFolderEmpty?.classList.remove('hidden');
       printFolderEmpty.textContent = 'خواندن پوشه انجام نشد: ' + (error?.message || error);
     }
@@ -1337,8 +1587,10 @@
     document.querySelectorAll('[data-social]').forEach((button) => button.classList.remove('active'));
     openPrintFolderSocialBtn?.classList.add('active');
     socialDialog.classList.add('folder-mode');
+    hideSocialStatus();
     socialBrowserPanel?.classList.add('hidden');
     printFolderPanel?.classList.remove('hidden');
+    setPrintFolderViewMode(printFolderViewMode);
     await loadPrintFolder('');
   }
 
@@ -1349,6 +1601,24 @@
     if (parent) loadPrintFolder(parent);
   });
   openPrintFolderWindowsBtn?.addEventListener('click', () => window.cafeDesk.openDownloadRoot());
+  printViewDetailsBtn?.addEventListener('click', () => setPrintFolderViewMode('details'));
+  printViewListBtn?.addEventListener('click', () => setPrintFolderViewMode('list'));
+  printViewIconsBtn?.addEventListener('click', () => setPrintFolderViewMode('icons'));
+
+  printFolderList?.addEventListener('click', (event) => {
+    if (event.target !== printFolderList) return;
+    printFolderSelection.clear();
+    printFolderLastIndex = -1;
+    updatePrintSelectionUi();
+  });
+
+  printFolderPanel?.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || String(event.key).toLowerCase() !== 'a') return;
+    event.preventDefault();
+    printFolderSelection.clear();
+    printFolderItems.forEach((item) => printFolderSelection.add(item.path));
+    updatePrintSelectionUi();
+  });
 
   function prewarmSocialViews() {
     const keys = ['rubika', 'shad', 'eitaa', 'telegram'];
@@ -1356,7 +1626,7 @@
       setTimeout(() => {
         const view = ensureSocialView(key);
         if (view && key !== activeSocial) view.classList.add('hidden');
-      }, index * 450);
+      }, 1800 + index * 1500);
     });
   }
 
@@ -1369,11 +1639,32 @@
   closeSocialBtn.addEventListener('click', () => socialDialog.close());
 
   reloadSocialBtn.addEventListener('click', () => {
-    try { socialViews.get(activeSocial)?.reload(); } catch {}
+    const view = socialViews.get(activeSocial);
+    if (!view) return;
+    const health = socialHealthState(activeSocial);
+    health.failures = 0;
+    setSocialStatus('در حال بارگذاری مجدد…', { loading: true });
+    try { view.reloadIgnoringCache(); } catch { try { view.reload(); } catch {} }
+  });
+
+  socialRetryBtn?.addEventListener('click', () => {
+    recoverSocialView(activeSocial, 'درخواست کاربر', true);
   });
 
   document.querySelectorAll('[data-social]').forEach((button) => {
     button.addEventListener('click', () => activateSocial(button.dataset.social));
+  });
+
+  window.cafeDesk.onDownloadStatus?.((payload) => {
+    if (!payload) return;
+    if (payload.state === 'completed') {
+      showToast('✓ ذخیره شد: ' + (payload.filename || 'فایل'), 'success');
+      if (socialDialog?.classList.contains('folder-mode')) {
+        loadPrintFolder(currentPrintFolderPath || '');
+      }
+    } else if (payload.state === 'interrupted') {
+      showToast('ذخیره فایل کامل نشد: ' + (payload.filename || 'فایل'), 'error');
+    }
   });
 
   window.cafeDesk.onGuestOpenTab?.((payload) => {

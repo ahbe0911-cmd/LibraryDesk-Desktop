@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -87,6 +87,82 @@ function saveCredential(payload) {
   return { ok: true, origin: key };
 }
 
+
+function appSettingsFile() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readAppSettings() {
+  try {
+    const file = appSettingsFile();
+    if (!fs.existsSync(file)) return {};
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAppSettings(settings) {
+  const file = appSettingsFile();
+  const tmp = file + '.tmp';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(tmp, JSON.stringify(settings, null, 2), 'utf8');
+  fs.renameSync(tmp, file);
+}
+
+function getDownloadFolder() {
+  const configured = String(readAppSettings().downloadFolder || '').trim();
+  if (configured) {
+    try {
+      if (fs.statSync(configured).isDirectory()) return configured;
+    } catch {}
+  }
+  return app.getPath('downloads');
+}
+
+function downloadFolderInfo() {
+  const folder = getDownloadFolder();
+  return {
+    path: folder,
+    label: path.basename(folder) || folder,
+    isDefault: folder === app.getPath('downloads')
+  };
+}
+
+function nextAvailableDownloadPath(folder, filename) {
+  fs.mkdirSync(folder, { recursive: true });
+  const safeName = path.basename(String(filename || 'download'));
+  let candidate = path.join(folder, safeName);
+  if (!fs.existsSync(candidate)) return candidate;
+
+  const ext = path.extname(safeName);
+  const stem = path.basename(safeName, ext);
+  for (let i = 1; i < 10000; i += 1) {
+    candidate = path.join(folder, `${stem} (${i})${ext}`);
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  return path.join(folder, `${stem}-${Date.now()}${ext}`);
+}
+
+async function chooseDownloadFolder(ownerWindow) {
+  const result = await dialog.showOpenDialog(ownerWindow || undefined, {
+    title: 'انتخاب پوشه پیش‌فرض دانلود CafeDesk',
+    defaultPath: getDownloadFolder(),
+    properties: ['openDirectory', 'createDirectory']
+  });
+
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { ok: false, canceled: true, ...downloadFolderInfo() };
+  }
+
+  const folder = result.filePaths[0];
+  const settings = readAppSettings();
+  settings.downloadFolder = folder;
+  writeAppSettings(settings);
+  return { ok: true, canceled: false, ...downloadFolderInfo() };
+}
+
 function configureGuestSession(ses) {
   let partition = '';
   try { partition = ses.getPartition() || 'default'; } catch { partition = 'default'; }
@@ -104,10 +180,8 @@ function configureGuestSession(ses) {
 
   ses.on('will-download', (_event, item) => {
     try {
-      item.setSaveDialogOptions({
-        title: 'ذخیره فایل',
-        defaultPath: path.join(app.getPath('downloads'), item.getFilename())
-      });
+      const folder = getDownloadFolder();
+      item.setSavePath(nextAvailableDownloadPath(folder, item.getFilename()));
     } catch {}
   });
 }
@@ -211,9 +285,16 @@ app.whenReady().then(() => {
     return factor;
   });
 
+  ipcMain.handle('downloads:get-folder', () => downloadFolderInfo());
+
+  ipcMain.handle('downloads:choose-folder', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    return chooseDownloadFolder(owner);
+  });
+
   ipcMain.handle('downloads:open', async () => {
-    const result = await shell.openPath(app.getPath('downloads'));
-    return { ok: !result, message: result || '' };
+    const result = await shell.openPath(getDownloadFolder());
+    return { ok: !result, message: result || '', ...downloadFolderInfo() };
   });
 
   ipcMain.handle('credentials:get', (_event, url) => getCredential(url));

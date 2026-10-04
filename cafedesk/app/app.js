@@ -5,7 +5,6 @@
   const UI_ZOOM_KEY = 'cafedesk.uiZoom.v2';
   const SITE_ZOOM_MAP_KEY = 'cafedesk.siteZoomMap.v4';
   const GUEST_PRELOAD_URL = new URL('../webview-preload.js', window.location.href).toString();
-  const WEBVIEW_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 
   const $ = (id) => document.getElementById(id);
 
@@ -15,6 +14,8 @@
   const showWorkspaceBtn = $('showWorkspaceBtn');
   const openToolsBtn = $('openToolsBtn');
   const openSocialBtn = $('openSocialBtn');
+  const downloadFolderBtn = $('downloadFolderBtn');
+  const downloadFolderLabel = $('downloadFolderLabel');
 
   const sitesGrid = $('sitesGrid');
   const sitesEmpty = $('sitesEmpty');
@@ -79,8 +80,8 @@
   let activeSocial = 'rubika';
 
   const socialApps = {
-    rubika: { name: 'روبیکا', url: 'https://web.rubika.ir/' },
-    shad: { name: 'شاد', url: 'https://web.shad.ir/' },
+    rubika: { name: 'روبیکا', url: 'https://m.rubika.ir/' },
+    shad: { name: 'شاد', url: 'https://my.shad.ir/' },
     eitaa: { name: 'ایتا', url: 'https://web.eitaa.com/' },
     telegram: { name: 'تلگرام', url: 'https://web.telegram.org/k/' }
   };
@@ -545,7 +546,7 @@
 
     pane.slot.onclick = null;
     pane.slot.replaceChildren();
-    pane.slot.className = '';
+    pane.slot.className = 'pane-slot';
 
     const shell = document.createElement('div');
     shell.className = 'browser-shell';
@@ -562,7 +563,6 @@
     webview.setAttribute('allowpopups', 'true');
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
     webview.setAttribute('aria-label', site.name);
-    webview.setAttribute('useragent', WEBVIEW_UA);
 
     webview.addEventListener('dom-ready', () => {
       applySiteZoom(webview, getSiteZoom(site));
@@ -593,7 +593,7 @@
     }
 
     pane.site = null;
-    pane.slot.className = 'empty-pane';
+    pane.slot.className = 'pane-slot empty-pane';
     pane.slot.replaceChildren();
 
     const replacement = emptyPaneNode(side);
@@ -686,7 +686,6 @@
     view.setAttribute('src', appInfo.url);
     view.setAttribute('allowpopups', 'true');
     view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
-    view.setAttribute('useragent', WEBVIEW_UA);
     view.addEventListener('dom-ready', () => fillSavedCredential(view));
     view.addEventListener('did-navigate', () => fillSavedCredential(view));
     view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event));
@@ -745,6 +744,28 @@
     if (!current) return;
     event.preventDefault();
     printWebview(current);
+  });
+
+
+  function showDownloadFolder(info) {
+    if (!downloadFolderBtn || !downloadFolderLabel || !info) return;
+    downloadFolderLabel.textContent = info.label || 'Downloads';
+    downloadFolderBtn.title = info.path
+      ? `پوشه پیش‌فرض دانلود: ${info.path}\nبرای تغییر کلیک کنید`
+      : 'انتخاب پوشه پیش‌فرض دانلود';
+  }
+
+  async function refreshDownloadFolder() {
+    try {
+      showDownloadFolder(await window.cafeDesk.getDownloadFolder());
+    } catch {}
+  }
+
+  downloadFolderBtn?.addEventListener('click', async () => {
+    try {
+      const result = await window.cafeDesk.chooseDownloadFolder();
+      showDownloadFolder(result);
+    } catch {}
   });
 
   // Main-page zoom. Website zoom is stored per site directly in each pane toolbar.
@@ -1042,6 +1063,7 @@
   // Initial state
   const savedUiZoom = localStorage.getItem(UI_ZOOM_KEY) || '100';
   setUiZoom(savedUiZoom);
+  refreshDownloadFolder();
 
   renderSites();
   renderPicker();

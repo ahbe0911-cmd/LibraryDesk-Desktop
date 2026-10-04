@@ -25,6 +25,14 @@
       <button id="openToolsBtn" class="ghost-btn tools-top-btn" type="button">ابزارها</button>
       <button id="openSocialBtn" class="ghost-btn social-top-btn" type="button">شبکه‌های اجتماعی</button>
 
+      <button id="downloadFolderBtn" class="download-folder-btn" type="button" title="انتخاب پوشه پیش‌فرض دانلود">
+        <span class="download-folder-icon">▣</span>
+        <span class="download-folder-text">
+          <strong>پوشه دانلود</strong>
+          <small id="downloadFolderLabel">Downloads</small>
+        </span>
+      </button>
+
       <div class="zoom-control" title="اندازه صفحه اصلی">
         <span>صفحه</span>
         <select id="uiZoomSelect" aria-label="اندازه صفحه اصلی">
@@ -37,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.4</span>
+      <span class="version" id="versionText">v1.0.5</span>
     </div>
   </header>
 
@@ -108,7 +116,7 @@
     <section id="workspaceView" class="workspace-view hidden">
       <div class="dual-shell">
         <section class="pane-host active-pane" data-pane="right">
-          <div class="empty-pane" id="rightSlot" data-empty-side="right">
+          <div class="pane-slot empty-pane" id="rightSlot" data-empty-side="right">
             <div class="empty-pane-inner">
               <span class="empty-plus">＋</span>
               <strong>نیمه راست خالی است</strong>
@@ -120,7 +128,7 @@
         <div class="split-line"></div>
 
         <section class="pane-host" data-pane="left">
-          <div class="empty-pane" id="leftSlot" data-empty-side="left">
+          <div class="pane-slot empty-pane" id="leftSlot" data-empty-side="left">
             <div class="empty-pane-inner">
               <span class="empty-plus">＋</span>
               <strong>نیمه چپ خالی است</strong>
@@ -259,6 +267,10 @@
 
       <div class="social-layout">
         <nav class="social-nav" aria-label="شبکه‌های اجتماعی">
+          <button class="social-nav-btn active" data-social="rubika" type="button">
+            <span class="social-badge rubika">ر</span>
+            <span><strong>روبیکا</strong><small>Rubika Mobile Web</small></span>
+          </button>
           <button class="social-nav-btn" data-social="shad" type="button">
             <span class="social-badge shad">ش</span>
             <span><strong>شاد</strong><small>Shad Web</small></span>
@@ -266,10 +278,6 @@
           <button class="social-nav-btn" data-social="eitaa" type="button">
             <span class="social-badge eitaa">ا</span>
             <span><strong>ایتا</strong><small>Eitaa Web</small></span>
-          </button>
-          <button class="social-nav-btn active" data-social="rubika" type="button">
-            <span class="social-badge rubika">ر</span>
-            <span><strong>روبیکا</strong><small>Rubika Web</small></span>
           </button>
           <button class="social-nav-btn" data-social="telegram" type="button">
             <span class="social-badge telegram">ت</span>

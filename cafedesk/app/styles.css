@@ -697,3 +697,182 @@ body.workspace-mode .page{
   .pane-zoom span{display:none}
   .pane-zoom select{min-width:52px}
 }
+
+
+/* ===== CafeDesk 1.0.5 verified fixes ===== */
+
+/* The slot itself must always have a definite height.
+   Without this, browser-shell height:100% resolves against an auto-height parent
+   and the webview collapses to the toolbar height. */
+.pane-slot{
+  width:100%;
+  height:100%;
+  min-height:0;
+  position:relative;
+  overflow:hidden;
+}
+.pane-slot>.browser-shell{
+  width:100%;
+  height:100%;
+  min-height:0;
+}
+
+/* Default download folder control */
+.download-folder-btn{
+  height:35px;
+  max-width:190px;
+  padding:0 9px;
+  border-radius:11px;
+  border:1px solid rgba(116,230,204,.24);
+  background:linear-gradient(135deg,rgba(53,217,209,.11),rgba(111,137,255,.08));
+  color:#eefbff;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  text-align:right;
+}
+.download-folder-btn:hover{
+  background:linear-gradient(135deg,rgba(53,217,209,.19),rgba(111,137,255,.13));
+  border-color:rgba(116,230,204,.42)
+}
+.download-folder-icon{
+  width:23px;height:23px;border-radius:7px;display:grid;place-items:center;flex:none;
+  color:#052026;background:linear-gradient(135deg,#65e7da,#8be8cc);font-size:11px
+}
+.download-folder-text{min-width:0;display:grid;gap:0}
+.download-folder-text strong{font-size:8px;line-height:1.25}
+.download-folder-text small{
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  direction:ltr;text-align:right;color:#9eb5c9;font-size:7px;line-height:1.25
+}
+
+/* Clock redesign based on the supplied clean white wall-clock reference */
+.clock-shell{height:205px}
+.clock{
+  width:184px;height:184px;
+  background:linear-gradient(145deg,#ffffff,#f4f4f0);
+  border:4px solid #111317;
+  outline:1px solid #6f7276;
+  outline-offset:2px;
+  box-shadow:
+    0 13px 30px rgba(0,0,0,.28),
+    inset 0 0 0 4px #e6e6e2,
+    inset 0 0 20px rgba(0,0,0,.035)
+}
+.clock::before{
+  content:"";
+  position:absolute;
+  inset:7px;
+  border-radius:50%;
+  background:repeating-conic-gradient(
+    from -1.5deg,
+    #111317 0 2.6deg,
+    transparent 2.6deg 30deg
+  );
+  -webkit-mask:radial-gradient(circle,transparent 0 72px,#000 73px 78px,transparent 79px);
+  mask:radial-gradient(circle,transparent 0 72px,#000 73px 78px,transparent 79px);
+  z-index:1
+}
+.tick-ring{
+  inset:8px;
+  background:repeating-conic-gradient(from -0.7deg,#aeb2b5 0 1deg,transparent 1deg 6deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 73px,#000 74px 77px,transparent 78px);
+  mask:radial-gradient(circle,transparent 0 73px,#000 74px 77px,transparent 78px);
+  z-index:1
+}
+.num{
+  z-index:3;
+  color:#0b0c0f;
+  font:700 21px/1 "Segoe UI",Arial,sans-serif;
+  min-width:24px;
+  letter-spacing:-1px
+}
+.n12{left:50%;top:13%}.n1{left:68%;top:19%}.n2{left:81%;top:32%}.n3{left:86%;top:50%}
+.n4{left:81%;top:68%}.n5{left:68%;top:81%}.n6{left:50%;top:86%}.n7{left:32%;top:81%}
+.n8{left:19%;top:68%}.n9{left:14%;top:50%}.n10{left:19%;top:32%}.n11{left:32%;top:19%}
+.hour{width:8px;height:49px;margin-left:-4px;background:#17191c;border-radius:3px}
+.minute{width:5px;height:67px;margin-left:-2.5px;background:#111317;border-radius:3px}
+.second{width:2px;height:72px;margin-left:-1px;background:#15171a;z-index:7}
+.hour::after,.minute::after{
+  content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+  background:inherit;border-radius:3px
+}
+.hour::after{width:8px;height:16px}
+.minute::after{width:5px;height:21px}
+.second::after{bottom:-28px;height:29px;background:#15171a}
+.clock-pin{
+  width:12px;height:12px;
+  background:radial-gradient(circle at 36% 30%,#fff1b2 0 18%,#d7a43c 36%,#9c6a13 100%);
+  border:1px solid #7d5615;
+  box-shadow:0 1px 4px rgba(0,0,0,.35)
+}
+
+/* Brighter, more cheerful social-network workspace */
+.social-dialog-card{
+  background:
+    radial-gradient(circle at 8% 8%,rgba(255,180,213,.50),transparent 30%),
+    radial-gradient(circle at 92% 8%,rgba(115,229,220,.48),transparent 30%),
+    linear-gradient(145deg,#f2f9ff,#e6f3ff 58%,#f8efff);
+  border-color:rgba(67,112,153,.20);
+  color:#17314a;
+  box-shadow:0 34px 110px rgba(2,16,31,.46)
+}
+.social-dialog-head{
+  border-bottom-color:rgba(33,78,113,.13)
+}
+.social-dialog-head .section-kicker{color:#087e91}
+.social-dialog-head h3{color:#17314a}
+.social-dialog .dialog-close{
+  color:#25435d;
+  background:rgba(255,255,255,.76);
+  border-color:rgba(45,92,128,.18)
+}
+.social-nav{
+  padding:8px;
+  border-radius:17px;
+  background:rgba(255,255,255,.54);
+  border:1px solid rgba(48,97,132,.12)
+}
+.social-nav-btn{
+  color:#17314a;
+  border-color:rgba(44,91,126,.12);
+  box-shadow:0 7px 18px rgba(44,82,118,.08);
+  background:rgba(255,255,255,.76)
+}
+.social-nav-btn[data-social="rubika"]{background:linear-gradient(135deg,#f1ebff,#e8f1ff)}
+.social-nav-btn[data-social="shad"]{background:linear-gradient(135deg,#e4f8ff,#e8f2ff)}
+.social-nav-btn[data-social="eitaa"]{background:linear-gradient(135deg,#fff1df,#ffe9e4)}
+.social-nav-btn[data-social="telegram"]{background:linear-gradient(135deg,#e3f6ff,#e7f0ff)}
+.social-nav-btn:hover,.social-nav-btn.active{
+  transform:translateX(-2px);
+  color:#102a42;
+  background:linear-gradient(135deg,#ffffff,#e4f9f5);
+  border-color:rgba(24,171,160,.42);
+  box-shadow:0 9px 22px rgba(39,119,135,.15)
+}
+.social-nav-btn small{color:#657d93}
+.social-browser{
+  border-color:rgba(38,93,132,.15);
+  box-shadow:0 12px 34px rgba(49,92,125,.14)
+}
+.social-browser-bar{
+  background:linear-gradient(135deg,#effbff,#edf5ff);
+  border-bottom-color:rgba(39,88,123,.12)
+}
+.social-browser-bar>div{color:#17314a}
+.social-browser-bar strong{color:#17314a}
+.social-reload-btn{
+  border-color:rgba(38,93,132,.15);
+  background:#ffffff;
+  color:#2b5875;
+  box-shadow:0 4px 12px rgba(42,91,126,.08)
+}
+.social-live-dot{
+  background:#24c7b6;
+  box-shadow:0 0 0 4px rgba(36,199,182,.12),0 0 12px rgba(36,199,182,.35)
+}
+
+@media(max-width:1350px){
+  .download-folder-text small{max-width:82px}
+  .download-folder-btn{max-width:145px}
+}

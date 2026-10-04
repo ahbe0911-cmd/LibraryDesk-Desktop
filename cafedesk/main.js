@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Men
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 
 app.setName('CafeDesk');
 
@@ -238,6 +239,27 @@ function cleanFileStem(value, fallback = 'CafeDesk') {
   return cleaned || fallback;
 }
 
+function invokeWindowsPrint(paths) {
+  const files = Array.isArray(paths) ? paths : [];
+  for (const file of files) {
+    const escaped = String(file).replace(/'/g, "''");
+    const command = `Start-Process -FilePath '${escaped}' -Verb Print`;
+    try {
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-Command', command
+      ], {
+        windowsHide: true,
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+    } catch {}
+  }
+}
+
 function configureGuestSession(ses) {
   let partition = '';
   try { partition = ses.getPartition() || 'default'; } catch { partition = 'default'; }
@@ -253,11 +275,26 @@ function configureGuestSession(ses) {
     callback(allowed.has(permission));
   });
 
-  ses.on('will-download', (_event, item) => {
+  ses.on('will-download', (_event, item, sourceContents) => {
     try {
       const folder = getDownloadFolder();
       item.setSavePath(nextAvailableDownloadPath(folder, item.getFilename()));
     } catch {}
+
+    item.once('done', (_doneEvent, state) => {
+      const host = sourceContents?.hostWebContents || sourceContents;
+      if (!host || host.isDestroyed?.()) return;
+
+      try {
+        host.send('cafedesk:download-status', {
+          state,
+          filename: item.getFilename(),
+          savePath: item.getSavePath(),
+          receivedBytes: item.getReceivedBytes(),
+          totalBytes: item.getTotalBytes()
+        });
+      } catch {}
+    });
   });
 }
 
@@ -429,25 +466,79 @@ app.whenReady().then(() => {
     return { ok: !result, message: result || '' };
   });
 
-  ipcMain.handle('files:context-menu', (event, targetPath, isDirectory) => {
-    const { target } = resolveInsideDownloadFolder(targetPath);
+  ipcMain.handle('files:context-menu', (event, targetPaths) => {
+    const requested = Array.isArray(targetPaths) ? targetPaths : [targetPaths];
+    const resolved = requested
+      .filter(Boolean)
+      .map((value) => resolveInsideDownloadFolder(value).target)
+      .filter((value, index, array) => array.indexOf(value) === index);
+
+    if (!resolved.length) return { ok: false };
+
     const owner = BrowserWindow.fromWebContents(event.sender);
-    const template = [
-      {
-        label: isDirectory ? 'باز کردن پوشه' : 'باز کردن با برنامه پیش‌فرض ویندوز',
-        click: () => shell.openPath(target).catch(() => {})
-      },
-      { type: 'separator' },
-      {
+    const items = resolved.map((target) => {
+      let stat = null;
+      try { stat = fs.statSync(target); } catch {}
+      return { target, isDirectory: Boolean(stat?.isDirectory()) };
+    });
+
+    const files = items.filter((item) => !item.isDirectory).map((item) => item.target);
+    const first = items[0];
+    const template = [];
+
+    if (items.length === 1) {
+      template.push({
+        label: first.isDirectory ? 'باز کردن پوشه' : 'باز کردن با برنامه پیش‌فرض ویندوز',
+        click: () => shell.openPath(first.target).catch(() => {})
+      });
+    }
+
+    if (files.length) {
+      template.push({
+        label: files.length > 1 ? `چاپ ${files.length} فایل با ویندوز` : 'چاپ با برنامه پیش‌فرض ویندوز',
+        click: () => invokeWindowsPrint(files)
+      });
+    }
+
+    template.push({ type: 'separator' });
+
+    if (items.length === 1) {
+      template.push({
         label: 'نمایش در File Explorer',
-        click: () => shell.showItemInFolder(target)
-      },
-      {
-        label: 'کپی مسیر',
-        click: () => clipboard.writeText(target)
-      }
-    ];
+        click: () => shell.showItemInFolder(first.target)
+      });
+    }
+
+    template.push({
+      label: items.length > 1 ? 'کپی مسیر فایل‌های انتخاب‌شده' : 'کپی مسیر',
+      click: () => clipboard.writeText(items.map((item) => item.target).join('\r\n'))
+    });
+
     Menu.buildFromTemplate(template).popup({ window: owner || undefined });
+    return { ok: true, count: items.length };
+  });
+
+  ipcMain.handle('files:print-download-items', (_event, targetPaths) => {
+    const requested = Array.isArray(targetPaths) ? targetPaths : [targetPaths];
+    const files = requested
+      .filter(Boolean)
+      .map((value) => resolveInsideDownloadFolder(value).target)
+      .filter((target) => {
+        try { return fs.statSync(target).isFile(); } catch { return false; }
+      });
+
+    invokeWindowsPrint(files);
+    return { ok: files.length > 0, count: files.length };
+  });
+
+  ipcMain.handle('social:repair', async (_event, key) => {
+    const safeKey = String(key || '');
+    if (!['rubika','shad','eitaa','telegram'].includes(safeKey)) return { ok: false };
+    const ses = session.fromPartition('persist:cafedesk-social-' + safeKey);
+    try { await ses.clearCache(); } catch {}
+    try {
+      await ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+    } catch {}
     return { ok: true };
   });
 
@@ -478,9 +569,10 @@ app.whenReady().then(() => {
       if (!debuggerWasAttached) guest.debugger.attach('1.3');
       const result = await guest.debugger.sendCommand('Page.captureScreenshot', {
         format: 'jpeg',
-        quality: 95,
+        quality: 100,
         fromSurface: true,
-        captureBeyondViewport: true
+        captureBeyondViewport: true,
+        optimizeForSpeed: false
       });
       fs.writeFileSync(target, Buffer.from(result.data, 'base64'));
     } finally {

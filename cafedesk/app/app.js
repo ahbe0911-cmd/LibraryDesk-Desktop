@@ -1,448 +1,661 @@
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'cafedesk.sites.v1';
-  const tones = 8;
-  const state = {
-    activePane: 'right',
-    sites: loadSites(),
-    panes: {
-      right: { webview: null, title: 'پنجره راست' },
-      left: { webview: null, title: 'پنجره چپ' }
-    },
-    calc: '0'
-  };
+  const SITES_KEY = 'cafedesk.sites.v1';
+  const UI_ZOOM_KEY = 'cafedesk.uiZoom.v1';
+  const SITE_ZOOM_KEY = 'cafedesk.siteZoom.v1';
 
   const $ = (id) => document.getElementById(id);
+
   const dashboardView = $('dashboardView');
   const workspaceView = $('workspaceView');
+  const showDashboardBtn = $('showDashboardBtn');
+  const showWorkspaceBtn = $('showWorkspaceBtn');
+  const backDashboardBtn = $('backDashboardBtn');
+
   const sitesGrid = $('sitesGrid');
   const sitesEmpty = $('sitesEmpty');
-  const workspaceSites = $('workspaceSites');
+  const siteSearchInput = $('siteSearchInput');
+  const siteCount = $('siteCount');
+
   const siteDialog = $('siteDialog');
+  const siteForm = $('siteForm');
+  const addSiteBtn = $('addSiteBtn');
+  const saveSiteBtn = $('saveSiteBtn');
   const siteNameInput = $('siteNameInput');
   const siteUrlInput = $('siteUrlInput');
   const siteFormError = $('siteFormError');
 
+  const sitePickerDialog = $('sitePickerDialog');
+  const closePickerBtn = $('closePickerBtn');
+  const pickerSearchInput = $('pickerSearchInput');
+  const pickerSitesGrid = $('pickerSitesGrid');
+  const pickerEmpty = $('pickerEmpty');
+  const pickerSideLabel = $('pickerSideLabel');
+
+  const toolsDialog = $('toolsDialog');
+  const openToolsBtn = $('openToolsBtn');
+  const closeToolsBtn = $('closeToolsBtn');
+
+  const uiZoomSelect = $('uiZoomSelect');
+  const siteZoomSelect = $('siteZoomSelect');
+
+  const hourHand = $('hourHand');
+  const minuteHand = $('minuteHand');
+  const secondHand = $('secondHand');
+
+  const panes = {
+    right: {
+      section: document.querySelector('[data-pane="right"]'),
+      slot: $('rightSlot'),
+      title: $('rightTitle'),
+      webview: null,
+      site: null
+    },
+    left: {
+      section: document.querySelector('[data-pane="left"]'),
+      slot: $('leftSlot'),
+      title: $('leftTitle'),
+      webview: null,
+      site: null
+    }
+  };
+
+  let activePane = 'right';
+  let pickerTargetSide = 'right';
+  let webviewCounter = 0;
+  let siteZoom = 100;
+
+  function faNumber(value) {
+    return Number(value || 0).toLocaleString('fa-IR');
+  }
+
   function loadSites() {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      if (!Array.isArray(raw)) return [];
-      return raw.filter(x => x && typeof x.name === 'string' && typeof x.url === 'string');
+      const parsed = JSON.parse(localStorage.getItem(SITES_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
     } catch {
       return [];
     }
   }
 
+  let sites = loadSites();
+
   function saveSites() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.sites));
+    localStorage.setItem(SITES_KEY, JSON.stringify(sites));
   }
 
-  function normalizeUrl(value) {
-    let url = String(value || '').trim();
-    if (!url) return null;
-    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = 'https://' + url;
+  function normalizeUrl(raw) {
+    const value = String(raw || '').trim();
+    if (!value) throw new Error('لینک سایت را وارد کنید.');
+    const prepared = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) ? value : 'https://' + value;
+    let url;
     try {
-      const parsed = new URL(url);
-      if (!/^https?:$/i.test(parsed.protocol)) return null;
-      return parsed.href;
+      url = new URL(prepared);
     } catch {
-      return null;
+      throw new Error('لینک سایت معتبر نیست.');
+    }
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('فقط لینک‌های http و https قابل استفاده هستند.');
+    }
+    return url.toString();
+  }
+
+  function hostLabel(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return String(url || '');
     }
   }
 
-  function displayUrl(url) {
-    try {
-      const u = new URL(url);
-      return u.hostname.replace(/^www\./i, '');
-    } catch {
-      return url;
+  function matchesSearch(site, query) {
+    const q = String(query || '').trim().toLocaleLowerCase('fa-IR');
+    if (!q) return true;
+    return (
+      String(site.name || '').toLocaleLowerCase('fa-IR').includes(q) ||
+      hostLabel(site.url).toLocaleLowerCase('en-US').includes(q)
+    );
+  }
+
+  function createSiteCard(site, index) {
+    const card = document.createElement('article');
+    card.className = `site-card tone-${index % 10}`;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.title = site.url;
+
+    const top = document.createElement('div');
+    const title = document.createElement('h3');
+    title.textContent = site.name;
+
+    const url = document.createElement('div');
+    url.className = 'url';
+    url.textContent = hostLabel(site.url);
+    top.append(title, url);
+
+    const open = document.createElement('div');
+    open.className = 'site-open';
+    open.textContent = 'باز کردن ←';
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'remove-site';
+    remove.title = 'حذف';
+    remove.textContent = '×';
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!confirm(`سایت «${site.name}» حذف شود؟`)) return;
+      sites = sites.filter((item) => item.id !== site.id);
+      saveSites();
+      renderSites();
+      renderPicker();
+    });
+
+    card.append(top, open, remove);
+
+    const openFromDashboard = () => {
+      let target = activePane;
+      if (!panes.right.webview) target = 'right';
+      else if (!panes.left.webview) target = 'left';
+      openSite(site, target);
+    };
+
+    card.addEventListener('click', openFromDashboard);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openFromDashboard();
+      }
+    });
+
+    return card;
+  }
+
+  function renderSites() {
+    const query = siteSearchInput.value;
+    const filtered = sites.filter((site) => matchesSearch(site, query));
+
+    sitesGrid.replaceChildren();
+    filtered.forEach((site) => {
+      const originalIndex = sites.findIndex((item) => item.id === site.id);
+      sitesGrid.appendChild(createSiteCard(site, Math.max(0, originalIndex)));
+    });
+
+    siteCount.textContent = `${faNumber(filtered.length)} از ${faNumber(sites.length)} سایت`;
+    sitesEmpty.classList.toggle('hidden', filtered.length > 0);
+    if (!filtered.length) {
+      sitesEmpty.textContent = sites.length
+        ? 'سایتی با این عبارت پیدا نشد.'
+        : 'هنوز سایتی اضافه نشده است.';
     }
   }
 
-  function randomId() {
-    const a = new Uint32Array(4);
-    crypto.getRandomValues(a);
-    return [...a].map(n => n.toString(36)).join('');
+  function createPickerCard(site, index) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `picker-site tone-${index % 10}`;
+    button.title = site.url;
+
+    const name = document.createElement('strong');
+    name.textContent = site.name;
+    const host = document.createElement('span');
+    host.textContent = hostLabel(site.url);
+
+    button.append(name, host);
+    button.addEventListener('click', () => {
+      openSite(site, pickerTargetSide);
+      sitePickerDialog.close();
+    });
+    return button;
+  }
+
+  function renderPicker() {
+    const query = pickerSearchInput.value;
+    const filtered = sites.filter((site) => matchesSearch(site, query));
+
+    pickerSitesGrid.replaceChildren();
+    filtered.forEach((site) => {
+      const originalIndex = sites.findIndex((item) => item.id === site.id);
+      pickerSitesGrid.appendChild(createPickerCard(site, Math.max(0, originalIndex)));
+    });
+    pickerEmpty.classList.toggle('hidden', filtered.length > 0);
   }
 
   function showDashboard() {
     dashboardView.classList.remove('hidden');
     workspaceView.classList.add('hidden');
-    $('showDashboardBtn').classList.add('active');
-    $('showWorkspaceBtn').classList.remove('active');
+    showDashboardBtn.classList.add('active');
+    showWorkspaceBtn.classList.remove('active');
+    setTimeout(() => siteSearchInput.focus(), 60);
   }
 
   function showWorkspace() {
-    dashboardView.classList.add('hidden');
     workspaceView.classList.remove('hidden');
-    $('showDashboardBtn').classList.remove('active');
-    $('showWorkspaceBtn').classList.add('active');
+    dashboardView.classList.add('hidden');
+    showWorkspaceBtn.classList.add('active');
+    showDashboardBtn.classList.remove('active');
   }
 
   function setActivePane(side) {
-    state.activePane = side;
-    document.querySelectorAll('.browser-pane').forEach(pane => {
-      pane.classList.toggle('active-pane', pane.dataset.pane === side);
+    if (!panes[side]) return;
+    activePane = side;
+    Object.entries(panes).forEach(([key, pane]) => {
+      pane.section.classList.toggle('active-pane', key === side);
     });
   }
 
-  function createSiteCard(site, index, compact = false) {
-    if (compact) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `workspace-site-pill tone-${index % tones}`;
-      btn.textContent = site.name;
-      btn.title = site.url;
-      btn.addEventListener('click', () => openSite(site, state.activePane));
-      return btn;
-    }
+  function makePlaceholder(side) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pane-placeholder';
+    wrapper.dataset.activatePane = side;
 
-    const card = document.createElement('article');
-    card.className = `site-card tone-${index % tones}`;
-    card.tabIndex = 0;
-    card.setAttribute('role', 'button');
-    card.setAttribute('aria-label', `باز کردن ${site.name}`);
+    const strong = document.createElement('strong');
+    strong.textContent = side === 'right' ? 'پنجره راست' : 'پنجره چپ';
 
-    const top = document.createElement('div');
-    const title = document.createElement('h3');
-    title.textContent = site.name;
-    const url = document.createElement('div');
-    url.className = 'url';
-    url.textContent = displayUrl(site.url);
-    top.append(title, url);
+    const span = document.createElement('span');
+    span.textContent = side === 'right'
+      ? 'یک سایت انتخاب کنید؛ فقط همین نیمه باز می‌شود.'
+      : 'این نیمه مستقل است و تا انتخاب شما خالی می‌ماند.';
 
-    const open = document.createElement('div');
-    open.className = 'site-open';
-    open.innerHTML = '<span>باز کردن در پنجره فعال</span><span aria-hidden="true">←</span>';
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'remove-site';
-    remove.textContent = '×';
-    remove.title = 'حذف سایت';
-    remove.addEventListener('click', (event) => {
+    const button = document.createElement('button');
+    button.className = 'placeholder-choose';
+    button.type = 'button';
+    button.textContent = 'انتخاب سایت';
+    button.addEventListener('click', (event) => {
       event.stopPropagation();
-      const yes = confirm(`سایت «${site.name}» حذف شود؟`);
-      if (!yes) return;
-      state.sites = state.sites.filter(x => x.id !== site.id);
-      saveSites();
-      renderSites();
+      openSitePicker(side);
     });
 
-    card.append(top, open, remove);
-    card.addEventListener('click', () => openSite(site, state.activePane));
-    card.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openSite(site, state.activePane);
-      }
-    });
-    return card;
+    wrapper.addEventListener('click', () => setActivePane(side));
+    wrapper.append(strong, span, button);
+    return wrapper;
   }
 
-  function renderSites() {
-    sitesGrid.replaceChildren();
-    workspaceSites.replaceChildren();
-
-    state.sites.forEach((site, index) => {
-      sitesGrid.append(createSiteCard(site, index, false));
-      workspaceSites.append(createSiteCard(site, index, true));
-    });
-
-    const empty = state.sites.length === 0;
-    sitesEmpty.classList.toggle('hidden', !empty);
-
-    if (empty) {
-      const hint = document.createElement('span');
-      hint.className = 'workspace-empty';
-      hint.textContent = 'ابتدا از صفحه اصلی یک سایت اضافه کنید.';
-      workspaceSites.append(hint);
-    }
+  function applySiteZoom(webview) {
+    if (!webview) return;
+    const factor = Math.min(1.5, Math.max(0.5, siteZoom / 100));
+    try {
+      webview.setZoomFactor(factor);
+    } catch {}
   }
 
-  function clearPane(side) {
-    const pane = state.panes[side];
+  function openSite(site, side) {
+    const pane = panes[side];
+    if (!pane) return;
+
     if (pane.webview) {
       try { pane.webview.remove(); } catch {}
       pane.webview = null;
     }
-    const slot = $(`${side}Slot`);
-    slot.replaceChildren();
-    const holder = document.createElement('div');
-    holder.className = 'pane-placeholder';
-    const strong = document.createElement('strong');
-    strong.textContent = side === 'right' ? 'پنجره راست' : 'پنجره چپ';
-    const span = document.createElement('span');
-    span.textContent = 'یک کارت سایت را انتخاب کنید.';
-    holder.append(strong, span);
-    slot.append(holder);
-    pane.title = side === 'right' ? 'پنجره راست' : 'پنجره چپ';
-    $(`${side}Title`).textContent = pane.title;
-  }
 
-  function openSite(site, side) {
-    const slot = $(`${side}Slot`);
-    const old = state.panes[side].webview;
-    if (old) {
-      try { old.remove(); } catch {}
-    }
+    pane.slot.replaceChildren();
 
-    slot.replaceChildren();
     const webview = document.createElement('webview');
-    const partition = `cafedesk-${side}-${Date.now()}-${randomId()}`;
+    const partition = `cafedesk-isolated-${side}-${Date.now()}-${++webviewCounter}`;
+
     webview.setAttribute('partition', partition);
     webview.setAttribute('src', site.url);
-    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
     webview.setAttribute('allowpopups', 'false');
+    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
     webview.setAttribute('aria-label', site.name);
 
-    const loading = document.createElement('div');
-    loading.className = 'pane-loading';
-    loading.innerHTML = '<span class="spinner"></span><span>در حال باز کردن سایت…</span>';
-    slot.append(loading, webview);
-
-    state.panes[side].webview = webview;
-    state.panes[side].title = site.name;
-    $(`${side}Title`).textContent = site.name;
-    setActivePane(side);
-    showWorkspace();
-
-    webview.addEventListener('dom-ready', () => {
-      loading.remove();
-      try { webview.setZoomFactor(1); } catch {}
-    });
+    webview.addEventListener('dom-ready', () => applySiteZoom(webview));
     webview.addEventListener('did-start-loading', () => {
-      if (!loading.isConnected) slot.prepend(loading);
+      pane.title.textContent = site.name + ' …';
     });
-    webview.addEventListener('did-stop-loading', () => loading.remove());
-    webview.addEventListener('page-title-updated', (event) => {
-      const title = String(event.title || '').trim();
-      if (title) $(`${side}Title`).textContent = title.slice(0, 42);
+    webview.addEventListener('did-stop-loading', () => {
+      pane.title.textContent = site.name;
+      applySiteZoom(webview);
     });
     webview.addEventListener('did-fail-load', (event) => {
       if (event.errorCode === -3) return;
-      loading.remove();
-      const msg = document.createElement('div');
-      msg.className = 'pane-error';
-      msg.textContent = 'بارگذاری سایت انجام نشد. اتصال اینترنت یا آدرس سایت را بررسی کنید.';
-      slot.append(msg);
+      pane.title.textContent = site.name + ' — خطا';
     });
+
+    pane.slot.appendChild(webview);
+    pane.webview = webview;
+    pane.site = site;
+    pane.title.textContent = site.name;
+
+    setActivePane(side);
+    showWorkspace();
   }
 
-  function handleBrowserAction(action, side) {
-    const webview = state.panes[side].webview;
+  function closePane(side) {
+    const pane = panes[side];
+    if (!pane) return;
+    if (pane.webview) {
+      try { pane.webview.remove(); } catch {}
+      pane.webview = null;
+    }
+    pane.site = null;
+    pane.title.textContent = side === 'right' ? 'پنجره راست' : 'پنجره چپ';
+    pane.slot.replaceChildren(makePlaceholder(side));
+    setActivePane(side);
+  }
+
+  function browserAction(side, action) {
+    const pane = panes[side];
+    const webview = pane?.webview;
+
     if (action === 'home') {
-      clearPane(side);
+      closePane(side);
       return;
     }
     if (!webview) return;
+
     try {
       if (action === 'back' && webview.canGoBack()) webview.goBack();
-      else if (action === 'forward' && webview.canGoForward()) webview.goForward();
-      else if (action === 'reload') webview.reload();
+      if (action === 'forward' && webview.canGoForward()) webview.goForward();
+      if (action === 'reload') webview.reload();
     } catch {}
   }
 
-  function openAddSiteDialog() {
-    siteNameInput.value = '';
-    siteUrlInput.value = '';
-    siteFormError.textContent = '';
-    siteDialog.showModal();
-    setTimeout(() => siteNameInput.focus(), 40);
+  function openSitePicker(side) {
+    pickerTargetSide = side;
+    setActivePane(side);
+    pickerSideLabel.textContent = side === 'right' ? 'راست' : 'چپ';
+    pickerSearchInput.value = '';
+    renderPicker();
+    sitePickerDialog.showModal();
+    setTimeout(() => pickerSearchInput.focus(), 60);
   }
 
-  function addSite() {
+  // Add site
+  addSiteBtn.addEventListener('click', () => {
+    siteForm.reset();
+    siteFormError.textContent = '';
+    siteDialog.showModal();
+    setTimeout(() => siteNameInput.focus(), 60);
+  });
+
+  saveSiteBtn.addEventListener('click', () => {
     const name = siteNameInput.value.trim();
-    const url = normalizeUrl(siteUrlInput.value);
     if (!name) {
       siteFormError.textContent = 'نام سایت را وارد کنید.';
       siteNameInput.focus();
       return;
     }
-    if (!url) {
-      siteFormError.textContent = 'لینک سایت معتبر نیست.';
+
+    let url;
+    try {
+      url = normalizeUrl(siteUrlInput.value);
+    } catch (error) {
+      siteFormError.textContent = error.message || 'لینک سایت معتبر نیست.';
       siteUrlInput.focus();
       return;
     }
 
-    state.sites.push({
-      id: `${Date.now()}-${randomId()}`,
+    sites.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(),
       name,
       url,
       createdAt: Date.now()
     });
+
     saveSites();
+    siteSearchInput.value = '';
     renderSites();
+    renderPicker();
     siteDialog.close();
+  });
+
+  siteForm.addEventListener('submit', (event) => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+  });
+
+  siteSearchInput.addEventListener('input', renderSites);
+  pickerSearchInput.addEventListener('input', renderPicker);
+  closePickerBtn.addEventListener('click', () => sitePickerDialog.close());
+
+  // View navigation
+  showDashboardBtn.addEventListener('click', showDashboard);
+  showWorkspaceBtn.addEventListener('click', showWorkspace);
+  backDashboardBtn.addEventListener('click', showDashboard);
+
+  document.querySelectorAll('[data-activate-pane]').forEach((button) => {
+    button.addEventListener('click', () => setActivePane(button.dataset.activatePane));
+  });
+
+  document.querySelectorAll('.browser-pane').forEach((pane) => {
+    pane.addEventListener('mousedown', () => setActivePane(pane.dataset.pane));
+  });
+
+  document.querySelectorAll('[data-browser-action]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      browserAction(button.dataset.side, button.dataset.browserAction);
+    });
+  });
+
+  document.querySelectorAll('[data-choose-site]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openSitePicker(button.dataset.chooseSite);
+    });
+  });
+
+  // Zoom
+  function safeStoredZoom(key, fallback = 100) {
+    const n = Number(localStorage.getItem(key));
+    return [80, 90, 100, 110].includes(n) ? n : fallback;
   }
 
+  async function setUiZoom(percent) {
+    const value = [80, 90, 100, 110].includes(Number(percent)) ? Number(percent) : 100;
+    localStorage.setItem(UI_ZOOM_KEY, String(value));
+    uiZoomSelect.value = String(value);
+    try { await window.cafeDesk.setUiZoom(value); } catch {}
+  }
+
+  function setSiteZoom(percent) {
+    const value = [80, 90, 100, 110].includes(Number(percent)) ? Number(percent) : 100;
+    siteZoom = value;
+    localStorage.setItem(SITE_ZOOM_KEY, String(value));
+    siteZoomSelect.value = String(value);
+    Object.values(panes).forEach((pane) => applySiteZoom(pane.webview));
+  }
+
+  uiZoomSelect.addEventListener('change', () => setUiZoom(Number(uiZoomSelect.value)));
+  siteZoomSelect.addEventListener('change', () => setSiteZoom(Number(siteZoomSelect.value)));
+
+  // Analog clock
   function updateClock() {
     const now = new Date();
     const seconds = now.getSeconds() + now.getMilliseconds() / 1000;
     const minutes = now.getMinutes() + seconds / 60;
     const hours = (now.getHours() % 12) + minutes / 60;
-    $('secondHand').style.transform = `rotate(${seconds * 6}deg)`;
-    $('minuteHand').style.transform = `rotate(${minutes * 6}deg)`;
-    $('hourHand').style.transform = `rotate(${hours * 30}deg)`;
+
+    secondHand.style.transform = `rotate(${seconds * 6}deg)`;
+    minuteHand.style.transform = `rotate(${minutes * 6}deg)`;
+    hourHand.style.transform = `rotate(${hours * 30}deg)`;
+  }
+  updateClock();
+  setInterval(updateClock, 250);
+
+  // Tools
+  openToolsBtn.addEventListener('click', () => toolsDialog.showModal());
+  closeToolsBtn.addEventListener('click', () => toolsDialog.close());
+
+  const calcDisplay = $('calcDisplay');
+  const calcKeys = $('calcKeys');
+  let calcCurrent = '0';
+  let calcStored = null;
+  let calcOperator = null;
+  let calcReset = false;
+
+  function calcRender() {
+    calcDisplay.value = calcCurrent;
   }
 
-  function calcSet(value) {
-    state.calc = value;
-    $('calcDisplay').value = value;
+  function calculate(a, b, op) {
+    const x = Number(a);
+    const y = Number(b);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return NaN;
+    if (op === '+') return x + y;
+    if (op === '-') return x - y;
+    if (op === '×') return x * y;
+    if (op === '÷') return y === 0 ? NaN : x / y;
+    return y;
   }
 
-  function calculate() {
-    let expr = state.calc.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
-    if (!/^[0-9+\-*/%.()\s]+$/.test(expr)) {
-      calcSet('خطا');
-      return;
-    }
-    try {
-      const result = Function(`""use strict"; return (${{expr}})`)();
-      if (typeof result !== 'number' || !Number.isFinite(result)) throw new Error();
-      calcSet(String(Math.round((result + Number.EPSILON) * 1e12) / 1e12));
-    } catch {
-      calcSet('خطا');
-    }
+  function formatNumber(value) {
+    if (!Number.isFinite(value)) return 'خطا';
+    return String(Math.round((value + Number.EPSILON) * 1e10) / 1e10);
   }
 
-  function onCalc(key) {
-    if (key === 'C') return calcSet('0');
-    if (key === '⌫') {
-      if (state.calc === 'خطا' || state.calc.length <= 1) return calcSet('0');
-      return calcSet(state.calc.slice(0, -1));
-    }
-    if (key === '=') return calculate();
-
-    if (state.calc === 'خطا') state.calc = '0';
-    const operators = ['+', '-', '×', '÷', '%'];
-    if (operators.includes(key)) {
-      if (operators.includes(state.calc.slice(-1))) calcSet(state.calc.slice(0, -1) + key);
-      else calcSet(state.calc + key);
+  function handleCalc(key) {
+    if (/^\d$/.test(key)) {
+      if (calcCurrent === '0' || calcReset || calcCurrent === 'خطا') calcCurrent = key;
+      else if (calcCurrent.length < 16) calcCurrent += key;
+      calcReset = false;
+      calcRender();
       return;
     }
 
     if (key === '.') {
-      const tail = state.calc.split(/[+\-×÷%]/).pop();
-      if (tail.includes('.')) return;
+      if (calcReset || calcCurrent === 'خطا') {
+        calcCurrent = '0.';
+        calcReset = false;
+      } else if (!calcCurrent.includes('.')) {
+        calcCurrent += '.';
+      }
+      calcRender();
+      return;
     }
 
-    if (state.calc === '0' && key !== '.') calcSet(key);
-    else calcSet(state.calc + key);
-  }
-
-  function securePick(chars) {
-    if (!chars.length) return '';
-    const limit = Math.floor(0x100000000 / chars.length) * chars.length;
-    const buf = new Uint32Array(1);
-    do crypto.getRandomValues(buf); while (buf[0] >= limit);
-    return chars[buf[0] % chars.length];
-  }
-
-  function shuffleSecure(chars) {
-    const arr = [...chars];
-    const buf = new Uint32Array(1);
-    for (let i = arr.length - 1; i > 0; i--) {
-      const limit = Math.floor(0x100000000 / (i + 1)) * (i + 1);
-      do crypto.getRandomValues(buf); while (buf[0] >= limit);
-      const j = buf[0] % (i + 1);
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+    if (key === 'C') {
+      calcCurrent = '0';
+      calcStored = null;
+      calcOperator = null;
+      calcReset = false;
+      calcRender();
+      return;
     }
-    return arr.join('');
+
+    if (key === '⌫') {
+      if (calcReset || calcCurrent === 'خطا') calcCurrent = '0';
+      else calcCurrent = calcCurrent.length > 1 ? calcCurrent.slice(0, -1) : '0';
+      calcRender();
+      return;
+    }
+
+    if (key === '%') {
+      calcCurrent = formatNumber(Number(calcCurrent) / 100);
+      calcReset = true;
+      calcRender();
+      return;
+    }
+
+    if (['+', '-', '×', '÷'].includes(key)) {
+      if (calcOperator && calcStored !== null && !calcReset) {
+        calcCurrent = formatNumber(calculate(calcStored, calcCurrent, calcOperator));
+      }
+      calcStored = calcCurrent;
+      calcOperator = key;
+      calcReset = true;
+      calcRender();
+      return;
+    }
+
+    if (key === '=') {
+      if (!calcOperator || calcStored === null) return;
+      calcCurrent = formatNumber(calculate(calcStored, calcCurrent, calcOperator));
+      calcStored = null;
+      calcOperator = null;
+      calcReset = true;
+      calcRender();
+    }
+  }
+
+  calcKeys.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-calc]');
+    if (button) handleCalc(button.dataset.calc);
+  });
+
+  // Password generator + copy
+  const passwordLength = $('passwordLength');
+  const passwordLengthValue = $('passwordLengthValue');
+  const passwordOutput = $('passwordOutput');
+  const autoCopyPassword = $('autoCopyPassword');
+  const generatePasswordBtn = $('generatePasswordBtn');
+  const copyPasswordBtn = $('copyPasswordBtn');
+  const copyStatus = $('copyStatus');
+
+  function randomInt(max) {
+    const buffer = new Uint32Array(1);
+    crypto.getRandomValues(buffer);
+    return buffer[0] % max;
+  }
+
+  function shuffle(chars) {
+    const array = [...chars];
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array.join('');
+  }
+
+  function makePassword(length) {
+    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const nums = '23456789';
+    const symbols = '!@#$%&*+-_=?.';
+    const all = lower + upper + nums + symbols;
+
+    let out =
+      lower[randomInt(lower.length)] +
+      upper[randomInt(upper.length)] +
+      nums[randomInt(nums.length)] +
+      symbols[randomInt(symbols.length)];
+
+    while (out.length < length) out += all[randomInt(all.length)];
+    return shuffle(out);
   }
 
   async function copyText(value, message = 'کپی شد') {
+    if (!value) return;
     try {
-      if (window.cafeDesk?.copyText) await window.cafeDesk.copyText(value);
-      else await navigator.clipboard.writeText(value);
-      $('copyStatus').textContent = message;
+      await window.cafeDesk.copyText(value);
+      copyStatus.textContent = message;
       clearTimeout(copyText.timer);
-      copyText.timer = setTimeout(() => $('copyStatus').textContent = '', 1600);
-      return true;
+      copyText.timer = setTimeout(() => { copyStatus.textContent = ''; }, 1500);
     } catch {
-      $('copyStatus').textContent = 'کپی انجام نشد';
-      return false;
+      copyStatus.textContent = 'کپی انجام نشد';
     }
   }
 
-  async function generatePassword({ copy = true } = {}) {
-    const length = Math.max(10, Math.min(32, Number($('passwordLength').value) || 16));
-    const groups = [
-      'ABCDEFGHJKLMNPQRSTUVWXYZ',
-      'abcdefghijkmnopqrstuvwxyz',
-      '23456789',
-      '!@#$%&*+-_?'
-    ];
-    const all = groups.join('');
-    let result = groups.map(securePick).join('');
-    while (result.length < length) result += securePick(all);
-    result = shuffleSecure(result).slice(0, length);
-    $('passwordOutput').value = result;
-    if (copy && $('autoCopyPassword').checked) {
-      await copyText(result, 'رمز ساخته و کپی شد');
-    } else {
-      $('copyStatus').textContent = 'رمز جدید ساخته شد';
+  async function generatePassword() {
+    const length = Number(passwordLength.value) || 16;
+    const value = makePassword(length);
+    passwordOutput.value = value;
+    if (autoCopyPassword.checked) await copyText(value, 'رمز ساخته و خودکار کپی شد');
+    else {
+      copyStatus.textContent = 'رمز جدید ساخته شد';
       clearTimeout(copyText.timer);
-      copyText.timer = setTimeout(() => $('copyStatus').textContent = '', 1400);
+      copyText.timer = setTimeout(() => { copyStatus.textContent = ''; }, 1500);
     }
   }
 
-  $('showDashboardBtn').addEventListener('click', showDashboard);
-  $('showWorkspaceBtn').addEventListener('click', showWorkspace);
-  $('backDashboardBtn').addEventListener('click', showDashboard);
-  $('addSiteBtn').addEventListener('click', openAddSiteDialog);
-  $('saveSiteBtn').addEventListener('click', addSite);
+  passwordLength.addEventListener('input', () => {
+    passwordLengthValue.textContent = passwordLength.value;
+  });
+  generatePasswordBtn.addEventListener('click', generatePassword);
+  copyPasswordBtn.addEventListener('click', () => copyText(passwordOutput.value));
+  passwordOutput.addEventListener('click', () => passwordOutput.select());
 
-  siteNameInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      siteUrlInput.focus();
-    }
-  });
-  siteUrlInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addSite();
-    }
-  });
-
-  document.querySelectorAll('[data-activate-pane]').forEach(btn => {
-    btn.addEventListener('click', () => setActivePane(btn.dataset.activatePane));
-  });
-  document.querySelectorAll('.browser-pane').forEach(pane => {
-    pane.addEventListener('pointerdown', () => setActivePane(pane.dataset.pane));
-  });
-  document.querySelectorAll('[data-browser-action]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      handleBrowserAction(btn.dataset.browserAction, btn.dataset.side);
-    });
-  });
-
-  $('calcKeys').addEventListener('click', event => {
-    const btn = event.target.closest('[data-calc]');
-    if (btn) onCalc(btn.dataset.calc);
-  });
-
-  $('passwordLength').addEventListener('input', () => {
-    $('passwordLengthValue').textContent = $('passwordLength').value;
-  });
-  $('generatePasswordBtn').addEventListener('click', () => generatePassword({ copy: true }));
-  $('copyPasswordBtn').addEventListener('click', () => copyText($('passwordOutput').value, 'رمز کپی شد'));
-
-  window.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !siteDialog.open && !workspaceView.classList.contains('hidden')) showDashboard();
-  });
-
+  // Initial state
   renderSites();
-  updateClock();
-  setInterval(updateClock, 250);
-  generatePassword({ copy: false });
+  renderPicker();
+  generatePassword();
 
-  if (window.cafeDesk?.getVersion) {
-    window.cafeDesk.getVersion().then(v => {
-      $('versionText').textContent = `v${v}`;
-    }).catch(() => {});
-  }
+  setSiteZoom(safeStoredZoom(SITE_ZOOM_KEY, 100));
+  setUiZoom(safeStoredZoom(UI_ZOOM_KEY, 100));
+
+  window.cafeDesk.getVersion().then((version) => {
+    $('versionText').textContent = 'v' + version;
+  }).catch(() => {});
 })();

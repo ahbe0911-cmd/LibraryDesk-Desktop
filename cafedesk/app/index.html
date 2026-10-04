@@ -23,10 +23,12 @@
       <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
       <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
       <button id="openToolsBtn" class="ghost-btn tools-top-btn" type="button">ابزارها</button>
+      <button id="openSocialBtn" class="ghost-btn social-top-btn" type="button">شبکه‌های اجتماعی</button>
 
       <div class="zoom-control" title="اندازه صفحه اصلی">
         <span>صفحه</span>
         <select id="uiZoomSelect" aria-label="اندازه صفحه اصلی">
+          <option value="75">۷۵٪</option>
           <option value="80">۸۰٪</option>
           <option value="90">۹۰٪</option>
           <option value="100" selected>۱۰۰٪</option>
@@ -35,18 +37,7 @@
         </select>
       </div>
 
-      <div class="zoom-control" title="اندازه سایت‌ها">
-        <span>سایت</span>
-        <select id="siteZoomSelect" aria-label="اندازه سایت‌ها">
-          <option value="80">۸۰٪</option>
-          <option value="90">۹۰٪</option>
-          <option value="100" selected>۱۰۰٪</option>
-          <option value="110">۱۱۰٪</option>
-          <option value="125">۱۲۵٪</option>
-        </select>
-      </div>
-
-      <span class="version" id="versionText">v1.0.2</span>
+      <span class="version" id="versionText">v1.0.3</span>
     </div>
   </header>
 
@@ -251,6 +242,51 @@
           <button id="generatePasswordBtn" class="password-generate-btn" type="button">ساخت رمز جدید</button>
           <div id="copyStatus" class="status-line"></div>
         </article>
+      </div>
+    </div>
+  </dialog>
+
+
+  <dialog id="socialDialog" class="site-dialog social-dialog">
+    <div class="dialog-card social-dialog-card">
+      <div class="dialog-head social-dialog-head">
+        <div>
+          <div class="section-kicker">دسترسی سریع وب</div>
+          <h3>شبکه‌های اجتماعی</h3>
+        </div>
+        <button id="closeSocialBtn" class="dialog-close" type="button">×</button>
+      </div>
+
+      <div class="social-layout">
+        <nav class="social-nav" aria-label="شبکه‌های اجتماعی">
+          <button class="social-nav-btn active" data-social="rubika" type="button">
+            <span class="social-badge rubika">ر</span>
+            <span><strong>روبیکا</strong><small>Rubika Web</small></span>
+          </button>
+          <button class="social-nav-btn" data-social="shad" type="button">
+            <span class="social-badge shad">ش</span>
+            <span><strong>شاد</strong><small>Shad Web</small></span>
+          </button>
+          <button class="social-nav-btn" data-social="eitaa" type="button">
+            <span class="social-badge eitaa">ا</span>
+            <span><strong>ایتا</strong><small>Eitaa Web</small></span>
+          </button>
+          <button class="social-nav-btn" data-social="telegram" type="button">
+            <span class="social-badge telegram">ت</span>
+            <span><strong>تلگرام</strong><small>Telegram Web</small></span>
+          </button>
+        </nav>
+
+        <section class="social-browser">
+          <div class="social-browser-bar">
+            <div>
+              <span class="social-live-dot"></span>
+              <strong id="socialTitle">روبیکا</strong>
+            </div>
+            <button id="reloadSocialBtn" class="social-reload-btn" type="button">↻ بارگذاری مجدد</button>
+          </div>
+          <div id="socialWebviewHost" class="social-webview-host"></div>
+        </section>
       </div>
     </div>
   </dialog>

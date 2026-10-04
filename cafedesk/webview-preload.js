@@ -36,11 +36,38 @@ function isAdliranHost() {
   return host === 'adliran.ir' || host.endsWith('.adliran.ir');
 }
 
+function eblaghStage() {
+  if (!isAdliranHost()) return 'other';
+
+  const inputs = Array.from(document.querySelectorAll('input')).filter(visibleInput);
+  const contexts = inputs.map((input) => ({
+    input,
+    text: fieldContext(input)
+  }));
+
+  const nationalInput = contexts.find(({ input, text }) => {
+    const type = String(input.type || 'text').toLowerCase();
+    return ['text','tel','number'].includes(type) &&
+      /شماره\s*ملی|کد\s*ملی|national|melli/i.test(text);
+  })?.input || null;
+
+  const otpInput = contexts.find(({ text }) =>
+    /رمز\s*موقت|رمز\s*پویا|یک\s*بار\s*مصرف|otp|one[- ]?time|کد\s*(?:تایید|تأیید)|پیامک/i.test(text)
+  )?.input || null;
+
+  const personalPasswordInput = contexts.find(({ input, text }) => {
+    if (otpInput && input === otpInput) return false;
+    return /رمز\s*شخصی|رمز\s*ثنا|personal\s*(?:pass|password)/i.test(text) &&
+      !/رمز\s*موقت|رمز\s*پویا|یک\s*بار\s*مصرف|otp|پیامک/i.test(text);
+  })?.input || null;
+
+  if (otpInput && !personalPasswordInput) return 'otp';
+  if (nationalInput && personalPasswordInput) return 'login';
+  return 'other';
+}
+
 function isEblaghLoginPage() {
-  if (!isAdliranHost()) return false;
-  const bodyText = String(document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 50000);
-  return /شماره\s*ملی|کد\s*ملی/.test(bodyText) &&
-    /رمز\s*شخصی|رمز\s*ثنا|سامانه\s*ابلاغ|احراز\s*هویت\s*ثنا/.test(bodyText);
+  return eblaghStage() === 'login';
 }
 
 function credentialScopeUrl() {
@@ -50,7 +77,7 @@ function credentialScopeUrl() {
 function notifyCredentialScope() {
   clearTimeout(scopeTimer);
   scopeTimer = setTimeout(() => {
-    if (isEblaghLoginPage()) {
+    if (eblaghStage() === 'login') {
       ipcRenderer.sendToHost('credential-scope', { url: EBLAGH_CANONICAL_URL });
     }
   }, 80);
@@ -58,14 +85,31 @@ function notifyCredentialScope() {
 
 function loginFields() {
   const inputs = Array.from(document.querySelectorAll('input')).filter(visibleInput);
-  const eblagh = isEblaghLoginPage();
+  const stage = eblaghStage();
 
-  let passwordInput = null;
-  if (eblagh) {
-    passwordInput = inputs.find((input) => /رمز\s*شخصی|رمز\s*ثنا|personal.*pass|password/i.test(fieldContext(input)));
+  // Critical Eblagh exception: on step two the only credential is the temporary/OTP code.
+  // Never inject the saved personal Sana password into that field.
+  if (stage === 'otp') {
+    return { usernameInput: null, passwordInput: null, eblagh: true, eblaghStage: stage };
   }
-  passwordInput ||= inputs.find((input) => String(input.type || '').toLowerCase() === 'password');
-  if (!passwordInput) return { usernameInput: null, passwordInput: null, eblagh };
+
+  const eblagh = stage === 'login';
+  let passwordInput = null;
+
+  if (eblagh) {
+    passwordInput = inputs.find((input) =>
+      /رمز\s*شخصی|رمز\s*ثنا|personal\s*(?:pass|password)/i.test(fieldContext(input)) &&
+      !/رمز\s*موقت|رمز\s*پویا|یک\s*بار\s*مصرف|otp|پیامک/i.test(fieldContext(input))
+    );
+  }
+
+  if (!eblagh) {
+    passwordInput = inputs.find((input) => String(input.type || '').toLowerCase() === 'password');
+  }
+
+  if (!passwordInput) {
+    return { usernameInput: null, passwordInput: null, eblagh, eblaghStage: stage };
+  }
 
   const passwordIndex = inputs.indexOf(passwordInput);
   let usernameInput = null;
@@ -90,7 +134,7 @@ function loginFields() {
     return ['text','email','tel','number'].includes(type);
   }) || null;
 
-  return { usernameInput, passwordInput, eblagh };
+  return { usernameInput, passwordInput, eblagh, eblaghStage: stage };
 }
 
 function setNativeValue(input, value) {
@@ -104,7 +148,9 @@ function setNativeValue(input, value) {
 }
 
 function maybeAutofill() {
-  const { usernameInput, passwordInput } = loginFields();
+  const fields = loginFields();
+  const { usernameInput, passwordInput } = fields;
+  if (fields.eblaghStage === 'otp') return;
   if (!passwordInput || !savedCredentials.length) return;
 
   const typedUsername = String(usernameInput?.value || '').trim();
@@ -124,7 +170,9 @@ function maybeAutofill() {
 }
 
 function collectCredential() {
-  const { usernameInput, passwordInput } = loginFields();
+  const fields = loginFields();
+  const { usernameInput, passwordInput } = fields;
+  if (fields.eblaghStage === 'otp') return null;
   if (!passwordInput?.value) return null;
 
   return {

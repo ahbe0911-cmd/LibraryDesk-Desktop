@@ -46,7 +46,7 @@ assert(app.includes('captureScreenshot'), 'screenshot UI missing');
 assert(app.includes('toggleRecording'), 'screen recorder UI missing');
 assert(main.includes("capture:get-media-source-id"), 'tab media capture IPC missing');
 assert(main.includes("guest.getMediaSourceId(event.sender)"), 'recording must capture the selected guest WebContents');
-assert(main.includes("guest.capturePage()"), 'screenshot must capture the selected guest WebContents');
+assert(main.includes("capture:export-page"), 'full-page capture IPC missing');
 assert(app.includes('getCredentials'), 'multi-account password retrieval missing');
 assert(main.includes('function listCredentials()'), 'password manager list missing');
 assert(guestPreload.includes('savedCredentials'), 'guest autofill state missing');

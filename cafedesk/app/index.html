@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.7</span>
+      <span class="version" id="versionText">v1.0.8</span>
     </div>
   </header>
 
@@ -326,6 +326,11 @@
             <button id="reloadSocialBtn" class="social-reload-btn" type="button">↻ بارگذاری مجدد</button>
           </div>
           <div id="socialWebviewHost" class="social-webview-host"></div>
+          <div id="socialStatusOverlay" class="social-status-overlay hidden">
+            <span class="social-loader" aria-hidden="true"></span>
+            <strong id="socialStatusText">در حال بارگذاری…</strong>
+            <button id="socialRetryBtn" class="hidden" type="button">تلاش مجدد</button>
+          </div>
         </section>
 
         <section id="printFolderPanel" class="print-folder-panel hidden">
@@ -338,12 +343,18 @@
               </div>
             </div>
             <div class="print-folder-actions">
+              <div class="print-view-switch" aria-label="نوع نمایش فایل‌ها">
+                <button id="printViewDetailsBtn" class="active" type="button" title="جزئیات">☷</button>
+                <button id="printViewListBtn" type="button" title="فهرست">≡</button>
+                <button id="printViewIconsBtn" type="button" title="آیکون‌های بزرگ">▦</button>
+              </div>
+              <span id="printSelectedCount" class="print-selected-count">۰ انتخاب</span>
               <button id="printFolderBackBtn" type="button" title="پوشه قبلی">↑</button>
               <button id="refreshPrintFolderBtn" type="button">↻ تازه‌سازی</button>
               <button id="openPrintFolderWindowsBtn" type="button">باز کردن در ویندوز</button>
             </div>
           </div>
-          <div class="print-folder-columns">
+          <div id="printFolderColumns" class="print-folder-columns">
             <span>نام</span><span>نوع</span><span>حجم</span><span>تاریخ تغییر</span>
           </div>
           <div id="printFolderList" class="print-folder-list"></div>
@@ -373,6 +384,11 @@
       </div>
     </div>
   </dialog>
+
+  <div id="appToast" class="app-toast" role="status" aria-live="polite">
+    <span class="app-toast-icon">✓</span>
+    <span id="appToastText">ذخیره شد</span>
+  </div>
 
   <script src="./app.js"></script>
 </body>

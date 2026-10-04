@@ -39,6 +39,11 @@
 
   const toolsDialog = $('toolsDialog');
   const closeToolsBtn = $('closeToolsBtn');
+  const openPasswordManagerBtn = $('openPasswordManagerBtn');
+  const passwordManagerDialog = $('passwordManagerDialog');
+  const closePasswordManagerBtn = $('closePasswordManagerBtn');
+  const passwordManagerList = $('passwordManagerList');
+  const savedPasswordCount = $('savedPasswordCount');
 
   const socialDialog = $('socialDialog');
   const closeSocialBtn = $('closeSocialBtn');
@@ -62,13 +67,25 @@
       host: document.querySelector('[data-pane="right"]'),
       slot: $('rightSlot'),
       webview: null,
-      site: null
+      site: null,
+      tabs: [],
+      activeTabId: null,
+      shell: null,
+      tabbar: null,
+      toolbarHost: null,
+      frame: null
     },
     left: {
       host: document.querySelector('[data-pane="left"]'),
       slot: $('leftSlot'),
       webview: null,
-      site: null
+      site: null,
+      tabs: [],
+      activeTabId: null,
+      shell: null,
+      tabbar: null,
+      toolbarHost: null,
+      frame: null
     }
   };
 
@@ -77,6 +94,8 @@
   let sites = loadSites();
   let siteZoomMap = loadSiteZoomMap();
   const socialViews = new Map();
+  const recordingStates = new Map();
+  let tabSequence = 0;
   let activeSocial = 'rubika';
 
   const socialApps = {
@@ -354,55 +373,73 @@
     } catch {}
   }
 
-  async function fillSavedCredential(webview) {
-    if (!webview || !window.cafeDesk?.getCredential) return;
-
+  async function syncSavedCredentials(webview) {
+    if (!webview || !window.cafeDesk?.getCredentials) return;
     let url = '';
     try { url = webview.getURL() || webview.getAttribute('src') || ''; } catch {}
     if (!/^https?:/i.test(url)) return;
 
-    let credential = null;
-    try { credential = await window.cafeDesk.getCredential(url); } catch {}
-    if (!credential?.password) return;
-
-    const script = `(() => {
-      const username = ${JSON.stringify(credential.username || '')};
-      const password = ${JSON.stringify(credential.password || '')};
-      const inputs = Array.from(document.querySelectorAll('input:not([disabled])'));
-      const passwordInput = inputs.find((el) => String(el.type || '').toLowerCase() === 'password');
-      if (!passwordInput) return false;
-
-      const usernameHint = /user|login|email|mail|phone|mobile|national|melli|identity|شناسه|کاربر|موبایل|همراه|ملی/i;
-      const usernameInput = inputs.find((el) => {
-        if (el === passwordInput) return false;
-        const type = String(el.type || 'text').toLowerCase();
-        if (!['text','email','tel','number'].includes(type)) return false;
-        const hint = [el.name, el.id, el.autocomplete, el.placeholder, el.getAttribute('aria-label')].filter(Boolean).join(' ');
-        return usernameHint.test(hint);
-      }) || inputs.slice(0, Math.max(0, inputs.indexOf(passwordInput))).reverse().find((el) => {
-        const type = String(el.type || 'text').toLowerCase();
-        return ['text','email','tel','number'].includes(type) && el !== passwordInput;
-      });
-
-      const setValue = (el, value) => {
-        if (!el || !value) return;
-        const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-        if (descriptor?.set) descriptor.set.call(el, value);
-        else el.value = value;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-
-      if (usernameInput && username && !usernameInput.value) setValue(usernameInput, username);
-      if (!passwordInput.value) setValue(passwordInput, password);
-      return true;
-    })()`;
-
-    try { await webview.executeJavaScript(script, true); } catch {}
+    try {
+      const entries = await window.cafeDesk.getCredentials(url);
+      webview.send('cafedesk:credentials', Array.isArray(entries) ? entries : []);
+    } catch {}
   }
 
-  async function handleWebviewMessage(webview, event) {
+  function currentPaneTab(side) {
+    const pane = panes[side];
+    return pane?.tabs?.find((tab) => tab.id === pane.activeTabId) || null;
+  }
+
+  function tabByWebContentsId(webContentsId) {
+    const targetId = Number(webContentsId);
+    for (const [side, pane] of Object.entries(panes)) {
+      for (const tab of pane.tabs || []) {
+        try {
+          if (tab.webview.getWebContentsId() === targetId) return { side, pane, tab };
+        } catch {}
+      }
+    }
+    return null;
+  }
+
+  function socialViewByWebContentsId(webContentsId) {
+    const targetId = Number(webContentsId);
+    for (const [key, view] of socialViews.entries()) {
+      try {
+        if (view.getWebContentsId() === targetId) return { key, view };
+      } catch {}
+    }
+    return null;
+  }
+
+  async function handleCredentialSubmitted(webview, data) {
+    const password = String(data?.password || '');
+    const username = String(data?.username || '').trim();
+    let url = String(data?.url || '');
+
+    try { if (!url) url = webview.getURL() || ''; } catch {}
+    if (!/^https?:/i.test(url) || !password) return;
+
+    let existing = [];
+    try { existing = await window.cafeDesk.getCredentials(url); } catch {}
+    if (existing.some((entry) => entry.username === username && entry.password === password)) return;
+
+    const host = hostLabel(url) || 'این سایت';
+    const identityLine = username ? `\nنام کاربری / شماره ملی: ${username}` : '';
+    const accepted = confirm(
+      `رمز این حساب برای «${host}» ذخیره شود؟${identityLine}\n\nدفعه بعد CafeDesk آن را برای همین سایت و همین شناسه تکمیل می‌کند. رمز با محافظت امن ویندوز ذخیره می‌شود.`
+    );
+    if (!accepted) return;
+
+    try {
+      const result = await window.cafeDesk.saveCredential({ url, username, password });
+      if (!result?.ok && result?.message) alert(result.message);
+      await syncSavedCredentials(webview);
+      await refreshPasswordManager();
+    } catch {}
+  }
+
+  async function handleWebviewMessage(webview, event, side = null) {
     if (!event) return;
 
     if (event.channel === 'print-request') {
@@ -410,31 +447,147 @@
       return;
     }
 
-    if (event.channel !== 'credential-submitted') return;
+    if (event.channel === 'open-new-tab') {
+      const payload = event.args?.[0] || {};
+      const url = String(payload.url || payload || '');
+      if (!/^https?:/i.test(url)) return;
 
-    const data = event.args?.[0] || {};
-    const password = String(data.password || '');
-    const username = String(data.username || '');
-    let url = String(data.url || '');
+      if (side && panes[side]) {
+        const source = currentPaneTab(side);
+        openInternalTab(side, url, source?.site || panes[side].site || { name: hostLabel(url), url });
+      } else {
+        try { await webview.loadURL(url); } catch {}
+      }
+      return;
+    }
 
-    try { if (!url) url = webview.getURL() || ''; } catch {}
-    if (!/^https?:/i.test(url) || !password) return;
+    if (event.channel === 'credential-submitted') {
+      await handleCredentialSubmitted(webview, event.args?.[0] || {});
+    }
+  }
 
-    let existing = null;
-    try { existing = await window.cafeDesk.getCredential(url); } catch {}
-    if (existing && existing.username === username && existing.password === password) return;
-
-    const host = hostLabel(url) || 'این سایت';
-    const identityLine = username ? `\nنام کاربری / کد: ${username}` : '';
-    const accepted = confirm(
-      `اطلاعات ورود «${host}» ذخیره شود؟${identityLine}\n\nرمز به‌صورت رمزگذاری‌شده و محافظت‌شده توسط ویندوز ذخیره می‌شود.`
-    );
-    if (!accepted) return;
-
+  async function captureScreenshot(webview, button, site) {
     try {
-      const result = await window.cafeDesk.saveCredential({ url, username, password });
-      if (!result?.ok && result?.message) alert(result.message);
-    } catch {}
+      const id = webview.getWebContentsId();
+      const result = await window.cafeDesk.captureScreenshot(id, site?.name || hostLabel(webview.getURL()) || 'CafeDesk');
+      if (!result?.ok) return;
+      const old = button.textContent;
+      button.textContent = '✓';
+      button.title = `ذخیره شد: ${result.path || result.label}`;
+      setTimeout(() => {
+        button.textContent = old;
+        button.title = 'اسکرین‌شات از همین صفحه';
+      }, 1500);
+    } catch (error) {
+      alert('گرفتن اسکرین‌شات انجام نشد: ' + (error?.message || error));
+    }
+  }
+
+  function recordingKey(webview) {
+    try { return String(webview.getWebContentsId()); } catch { return ''; }
+  }
+
+  function updateRecordingButton(button, webview) {
+    const active = recordingStates.has(recordingKey(webview));
+    button.classList.toggle('recording-active', active);
+    button.textContent = active ? '■' : '●';
+    button.title = active ? 'توقف ضبط ویدیو' : 'شروع ضبط ویدیوی همین صفحه';
+  }
+
+  async function stopRecordingForWebview(webview) {
+    const key = recordingKey(webview);
+    const state = recordingStates.get(key);
+    if (!state) return null;
+
+    return new Promise((resolve) => {
+      state.resolveStop = resolve;
+      try {
+        state.recorder.stop();
+      } catch {
+        try { state.stream.getTracks().forEach((track) => track.stop()); } catch {}
+        recordingStates.delete(key);
+        resolve(null);
+      }
+    });
+  }
+
+  async function toggleRecording(webview, button, site) {
+    const key = recordingKey(webview);
+    if (!key) return;
+
+    if (recordingStates.has(key)) {
+      await stopRecordingForWebview(webview);
+      updateRecordingButton(button, webview);
+      return;
+    }
+
+    let fileInfo = null;
+    let stream = null;
+    try {
+      const sourceId = await window.cafeDesk.getMediaSourceId(Number(key));
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'tab',
+            chromeMediaSourceId: sourceId,
+            maxFrameRate: 30
+          }
+        }
+      });
+
+      const mimeType = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ].find((type) => MediaRecorder.isTypeSupported(type)) || '';
+
+      fileInfo = await window.cafeDesk.startRecordingFile(site?.name || hostLabel(webview.getURL()) || 'CafeDesk');
+      if (!fileInfo?.ok) throw new Error('فایل ضبط ساخته نشد.');
+
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType, videoBitsPerSecond: 4500000 } : { videoBitsPerSecond: 4500000 }
+      );
+
+      const state = {
+        recorder,
+        stream,
+        sessionId: fileInfo.sessionId,
+        queue: Promise.resolve(),
+        resolveStop: null
+      };
+      recordingStates.set(key, state);
+
+      recorder.addEventListener('dataavailable', (event) => {
+        if (!event.data || event.data.size <= 0) return;
+        state.queue = state.queue.then(async () => {
+          const bytes = await event.data.arrayBuffer();
+          await window.cafeDesk.appendRecordingChunk(state.sessionId, bytes);
+        });
+      });
+
+      recorder.addEventListener('stop', async () => {
+        try {
+          await state.queue;
+          await window.cafeDesk.finishRecordingFile(state.sessionId);
+        } catch {}
+        try { stream.getTracks().forEach((track) => track.stop()); } catch {}
+        recordingStates.delete(key);
+        state.resolveStop?.(fileInfo);
+      });
+
+      recorder.start(1000);
+      updateRecordingButton(button, webview);
+    } catch (error) {
+      try { stream?.getTracks().forEach((track) => track.stop()); } catch {}
+      if (fileInfo?.sessionId) {
+        try { await window.cafeDesk.abortRecordingFile(fileInfo.sessionId); } catch {}
+      }
+      recordingStates.delete(key);
+      updateRecordingButton(button, webview);
+      alert('ضبط صفحه شروع نشد: ' + (error?.message || error));
+    }
   }
 
   function makeToolbar(site, side, webview) {
@@ -469,6 +622,13 @@
     });
 
     const print = makePaneButton('⎙', 'چاپ این صفحه', () => printWebview(webview));
+    const screenshot = makePaneButton('▣', 'اسکرین‌شات از همین صفحه', () => captureScreenshot(webview, screenshot, site));
+    screenshot.classList.add('screenshot-btn');
+
+    const record = makePaneButton('●', 'شروع ضبط ویدیوی همین صفحه', () => toggleRecording(webview, record, site));
+    record.classList.add('record-btn');
+    setTimeout(() => updateRecordingButton(record, webview), 0);
+
     const downloads = makePaneButton('⬇', 'پوشه دانلودها', () => {
       try { window.cafeDesk.openDownloads(); } catch {}
     });
@@ -503,7 +663,7 @@
     const close = makePaneButton('×', 'بستن این پنل', () => closePane(side));
     close.classList.add('close-pane-btn');
 
-    actions.append(back, forward, reload, print, downloads, zoomWrap, change, close);
+    actions.append(back, forward, reload, print, screenshot, record, downloads, zoomWrap, change, close);
     toolbar.append(titleWrap, actions);
 
     webview.addEventListener('did-start-loading', () => {
@@ -513,6 +673,7 @@
     webview.addEventListener('did-stop-loading', () => {
       title.textContent = site.name;
       applySiteZoom(webview, getSiteZoom(site));
+      syncSavedCredentials(webview);
     });
 
     webview.addEventListener('did-fail-load', (event) => {
@@ -535,14 +696,149 @@
     return button;
   }
 
+  function renderPaneTabs(side) {
+    const pane = panes[side];
+    if (!pane?.tabbar) return;
+    pane.tabbar.replaceChildren();
+
+    pane.tabs.forEach((tab, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pane-tab';
+      item.classList.toggle('active', tab.id === pane.activeTabId);
+      item.title = tab.url || '';
+
+      const label = document.createElement('span');
+      label.className = 'pane-tab-label';
+      label.textContent = tab.title || tab.site?.name || `تب ${faNumber(index + 1)}`;
+
+      const close = document.createElement('span');
+      close.className = 'pane-tab-close';
+      close.textContent = '×';
+      close.title = 'بستن تب';
+      close.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closePaneTab(side, tab.id);
+      });
+
+      item.append(label, close);
+      item.addEventListener('click', () => activatePaneTab(side, tab.id));
+      pane.tabbar.append(item);
+    });
+  }
+
+  function activatePaneTab(side, tabId) {
+    const pane = panes[side];
+    const tab = pane?.tabs?.find((item) => item.id === tabId);
+    if (!pane || !tab) return;
+
+    pane.activeTabId = tabId;
+    pane.webview = tab.webview;
+    pane.site = tab.site;
+
+    pane.tabs.forEach((item) => {
+      item.webview.classList.toggle('hidden', item.id !== tabId);
+    });
+
+    pane.toolbarHost.replaceChildren(makeToolbar(tab.site, side, tab.webview));
+    renderPaneTabs(side);
+    setActivePane(side);
+  }
+
+  function makePaneWebview(side, site, url, tab) {
+    const webview = document.createElement('webview');
+    webview.className = 'pane-tab-webview hidden';
+    webview.setAttribute('partition', `persist:cafedesk-pane-${side}`);
+    webview.setAttribute('preload', GUEST_PRELOAD_URL);
+    webview.setAttribute('src', url);
+    webview.setAttribute('allowpopups', 'true');
+    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
+    webview.setAttribute('aria-label', site.name || hostLabel(url));
+
+    webview.addEventListener('dom-ready', () => {
+      applySiteZoom(webview, getSiteZoom(site));
+      syncSavedCredentials(webview);
+    });
+
+    webview.addEventListener('did-navigate', (event) => {
+      tab.url = event.url || tab.url;
+      syncSavedCredentials(webview);
+      renderPaneTabs(side);
+    });
+
+    webview.addEventListener('did-navigate-in-page', (event) => {
+      tab.url = event.url || tab.url;
+      syncSavedCredentials(webview);
+    });
+
+    webview.addEventListener('page-title-updated', (event) => {
+      tab.title = String(event.title || '').trim() || tab.site?.name || hostLabel(tab.url);
+      renderPaneTabs(side);
+    });
+
+    webview.addEventListener('ipc-message', (event) => handleWebviewMessage(webview, event, side));
+    return webview;
+  }
+
+  function createPaneTab(side, site, url, title) {
+    const pane = panes[side];
+    if (!pane?.frame) return null;
+
+    const tab = {
+      id: `tab-${++tabSequence}`,
+      site: site || { name: hostLabel(url), url },
+      url,
+      title: title || site?.name || hostLabel(url) || 'تب جدید',
+      webview: null
+    };
+
+    tab.webview = makePaneWebview(side, tab.site, url, tab);
+    pane.tabs.push(tab);
+    pane.frame.append(tab.webview);
+    activatePaneTab(side, tab.id);
+    return tab;
+  }
+
+  function openInternalTab(side, url, sourceSite) {
+    if (!/^https?:/i.test(String(url || ''))) return;
+    const site = {
+      ...(sourceSite || {}),
+      name: hostLabel(url) || sourceSite?.name || 'تب جدید',
+      url
+    };
+    createPaneTab(side, site, url, hostLabel(url) || 'تب جدید');
+  }
+
+  async function closePaneTab(side, tabId) {
+    const pane = panes[side];
+    const index = pane?.tabs?.findIndex((tab) => tab.id === tabId) ?? -1;
+    if (!pane || index < 0) return;
+
+    const [tab] = pane.tabs.splice(index, 1);
+    await stopRecordingForWebview(tab.webview);
+    try { tab.webview.remove(); } catch {}
+
+    if (!pane.tabs.length) {
+      closePane(side);
+      return;
+    }
+
+    if (pane.activeTabId === tabId) {
+      const next = pane.tabs[Math.min(index, pane.tabs.length - 1)];
+      activatePaneTab(side, next.id);
+    } else {
+      renderPaneTabs(side);
+    }
+  }
+
   function openSite(site, side) {
     const pane = panes[side];
     if (!pane) return;
 
-    if (pane.webview) {
-      try { pane.webview.remove(); } catch {}
-      pane.webview = null;
-    }
+    (pane.tabs || []).forEach((tab) => {
+      stopRecordingForWebview(tab.webview);
+      try { tab.webview.remove(); } catch {}
+    });
 
     pane.slot.onclick = null;
     pane.slot.replaceChildren();
@@ -551,34 +847,28 @@
     const shell = document.createElement('div');
     shell.className = 'browser-shell';
 
+    const tabbar = document.createElement('div');
+    tabbar.className = 'pane-tabbar';
+
+    const toolbarHost = document.createElement('div');
+    toolbarHost.className = 'pane-toolbar-host';
+
     const frame = document.createElement('div');
     frame.className = 'webview-frame';
 
-    const webview = document.createElement('webview');
-    const partition = `persist:cafedesk-pane-${side}`;
-
-    webview.setAttribute('partition', partition);
-    webview.setAttribute('preload', GUEST_PRELOAD_URL);
-    webview.setAttribute('src', site.url);
-    webview.setAttribute('allowpopups', 'true');
-    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
-    webview.setAttribute('aria-label', site.name);
-
-    webview.addEventListener('dom-ready', () => {
-      applySiteZoom(webview, getSiteZoom(site));
-      fillSavedCredential(webview);
-    });
-    webview.addEventListener('did-navigate', () => fillSavedCredential(webview));
-    webview.addEventListener('did-navigate-in-page', () => fillSavedCredential(webview));
-    webview.addEventListener('ipc-message', (event) => handleWebviewMessage(webview, event));
-
-    frame.append(webview);
-    shell.append(makeToolbar(site, side, webview), frame);
+    shell.append(tabbar, toolbarHost, frame);
     pane.slot.append(shell);
 
-    pane.webview = webview;
-    pane.site = site;
+    pane.tabs = [];
+    pane.activeTabId = null;
+    pane.shell = shell;
+    pane.tabbar = tabbar;
+    pane.toolbarHost = toolbarHost;
+    pane.frame = frame;
+    pane.webview = null;
+    pane.site = null;
 
+    createPaneTab(side, site, site.url, site.name);
     setActivePane(side);
     showWorkspace();
   }
@@ -587,12 +877,19 @@
     const pane = panes[side];
     if (!pane) return;
 
-    if (pane.webview) {
-      try { pane.webview.remove(); } catch {}
-      pane.webview = null;
-    }
+    (pane.tabs || []).forEach((tab) => {
+      stopRecordingForWebview(tab.webview);
+      try { tab.webview.remove(); } catch {}
+    });
 
+    pane.tabs = [];
+    pane.activeTabId = null;
+    pane.webview = null;
     pane.site = null;
+    pane.shell = null;
+    pane.tabbar = null;
+    pane.toolbarHost = null;
+    pane.frame = null;
     pane.slot.className = 'pane-slot empty-pane';
     pane.slot.replaceChildren();
 
@@ -670,8 +967,61 @@
   showDashboardBtn.addEventListener('click', showDashboard);
   showWorkspaceBtn.addEventListener('click', showWorkspace);
 
-  openToolsBtn.addEventListener('click', () => toolsDialog.showModal());
+  openToolsBtn.addEventListener('click', () => {
+    toolsDialog.showModal();
+    refreshPasswordManager();
+  });
   closeToolsBtn.addEventListener('click', () => toolsDialog.close());
+
+  async function refreshPasswordManager() {
+    let items = [];
+    try { items = await window.cafeDesk.listCredentials(); } catch {}
+
+    if (savedPasswordCount) savedPasswordCount.textContent = faNumber(items.length);
+    if (!passwordManagerList) return;
+
+    passwordManagerList.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'password-manager-empty';
+      empty.textContent = 'هنوز رمزی ذخیره نشده است.';
+      passwordManagerList.append(empty);
+      return;
+    }
+
+    items.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'password-manager-row';
+
+      const text = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = item.username || 'بدون نام کاربری';
+      const small = document.createElement('small');
+      small.textContent = item.origin;
+      text.append(strong, small);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'حذف';
+      remove.addEventListener('click', async () => {
+        if (!confirm(`رمز ذخیره‌شده برای «${item.username || item.origin}» حذف شود؟`)) return;
+        await window.cafeDesk.deleteCredential(item);
+        await refreshPasswordManager();
+        Object.values(panes).forEach((pane) => pane.tabs?.forEach((tab) => syncSavedCredentials(tab.webview)));
+        socialViews.forEach((view) => syncSavedCredentials(view));
+      });
+
+      row.append(text, remove);
+      passwordManagerList.append(row);
+    });
+  }
+
+  openPasswordManagerBtn?.addEventListener('click', () => {
+    toolsDialog.close();
+    passwordManagerDialog.showModal();
+    refreshPasswordManager();
+  });
+  closePasswordManagerBtn?.addEventListener('click', () => passwordManagerDialog.close());
 
   function ensureSocialView(key) {
     if (socialViews.has(key)) return socialViews.get(key);
@@ -686,9 +1036,9 @@
     view.setAttribute('src', appInfo.url);
     view.setAttribute('allowpopups', 'true');
     view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
-    view.addEventListener('dom-ready', () => fillSavedCredential(view));
-    view.addEventListener('did-navigate', () => fillSavedCredential(view));
-    view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event));
+    view.addEventListener('dom-ready', () => syncSavedCredentials(view));
+    view.addEventListener('did-navigate', () => syncSavedCredentials(view));
+    view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event, null));
     socialWebviewHost.append(view);
     socialViews.set(key, view);
     return view;
@@ -724,6 +1074,22 @@
 
   document.querySelectorAll('[data-social]').forEach((button) => {
     button.addEventListener('click', () => activateSocial(button.dataset.social));
+  });
+
+  window.cafeDesk.onGuestOpenTab?.((payload) => {
+    const url = String(payload?.url || '');
+    if (!/^https?:/i.test(url)) return;
+
+    const paneMatch = tabByWebContentsId(payload.sourceId);
+    if (paneMatch) {
+      openInternalTab(paneMatch.side, url, paneMatch.tab.site);
+      return;
+    }
+
+    const socialMatch = socialViewByWebContentsId(payload.sourceId);
+    if (socialMatch) {
+      try { socialMatch.view.loadURL(url); } catch {}
+    }
   });
 
   document.querySelectorAll('.pane-host').forEach((host) => {
@@ -1064,6 +1430,7 @@
   const savedUiZoom = localStorage.getItem(UI_ZOOM_KEY) || '100';
   setUiZoom(savedUiZoom);
   refreshDownloadFolder();
+  refreshPasswordManager();
 
   renderSites();
   renderPicker();

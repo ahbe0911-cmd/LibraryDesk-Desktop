@@ -372,20 +372,124 @@ app.whenReady().then(() => {
     return { ok: !result, message: result || '', ...downloadFolderInfo() };
   });
 
+  function resolveInsideDownloadFolder(candidate) {
+    const base = path.resolve(getDownloadFolder());
+    const target = path.resolve(String(candidate || base));
+    const relative = path.relative(base, target);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error('مسیر خارج از پوشه انتخاب‌شده است.');
+    }
+    return { base, target };
+  }
+
+  ipcMain.handle('files:list-download-folder', (_event, requestedPath) => {
+    const { base, target } = resolveInsideDownloadFolder(requestedPath);
+    const stat = fs.statSync(target);
+    if (!stat.isDirectory()) throw new Error('مسیر انتخاب‌شده پوشه نیست.');
+
+    const entries = fs.readdirSync(target, { withFileTypes: true }).map((entry) => {
+      const fullPath = path.join(target, entry.name);
+      let itemStat = null;
+      try { itemStat = fs.statSync(fullPath); } catch {}
+      return {
+        name: entry.name,
+        path: fullPath,
+        isDirectory: entry.isDirectory(),
+        size: itemStat?.size || 0,
+        mtimeMs: itemStat?.mtimeMs || 0,
+        extension: entry.isDirectory() ? '' : path.extname(entry.name).toLowerCase()
+      };
+    }).sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name, 'fa');
+    });
+
+    return {
+      root: base,
+      current: target,
+      parent: target === base ? null : path.dirname(target),
+      entries
+    };
+  });
+
+  ipcMain.handle('files:open-download-item', async (_event, targetPath) => {
+    const { target } = resolveInsideDownloadFolder(targetPath);
+    const result = await shell.openPath(target);
+    return { ok: !result, message: result || '' };
+  });
+
+  ipcMain.handle('files:show-download-item', (_event, targetPath) => {
+    const { target } = resolveInsideDownloadFolder(targetPath);
+    shell.showItemInFolder(target);
+    return { ok: true };
+  });
+
+  ipcMain.handle('files:open-download-root', async () => {
+    const result = await shell.openPath(getDownloadFolder());
+    return { ok: !result, message: result || '' };
+  });
+
+  ipcMain.handle('files:context-menu', (event, targetPath, isDirectory) => {
+    const { target } = resolveInsideDownloadFolder(targetPath);
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const template = [
+      {
+        label: isDirectory ? 'باز کردن پوشه' : 'باز کردن با برنامه پیش‌فرض ویندوز',
+        click: () => shell.openPath(target).catch(() => {})
+      },
+      { type: 'separator' },
+      {
+        label: 'نمایش در File Explorer',
+        click: () => shell.showItemInFolder(target)
+      },
+      {
+        label: 'کپی مسیر',
+        click: () => clipboard.writeText(target)
+      }
+    ];
+    Menu.buildFromTemplate(template).popup({ window: owner || undefined });
+    return { ok: true };
+  });
+
   ipcMain.handle('credentials:get', (_event, url) => getCredentials(url));
   ipcMain.handle('credentials:save', (_event, payload) => saveCredential(payload));
   ipcMain.handle('credentials:list', () => listCredentials());
   ipcMain.handle('credentials:delete', (_event, payload) => deleteCredential(payload));
 
-  ipcMain.handle('capture:screenshot', async (event, webContentsId, label) => {
+  ipcMain.handle('capture:export-page', async (event, webContentsId, label, requestedFormat) => {
     const guest = getGuestForHost(event, webContentsId);
-    const image = await guest.capturePage();
-    const target = nextAvailableDownloadPath(
-      getDownloadFolder(),
-      `${cleanFileStem(label, 'CafeDesk-Screenshot')}-${timestampForFile()}.png`
-    );
-    fs.writeFileSync(target, image.toPNG());
-    return { ok: true, path: target, label: path.basename(target) };
+    const format = String(requestedFormat || 'jpg').toLowerCase() === 'pdf' ? 'pdf' : 'jpg';
+    const stem = `${cleanFileStem(label, 'CafeDesk-Screenshot')}-${timestampForFile()}`;
+
+    if (format === 'pdf') {
+      const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.pdf`);
+      const pdf = await guest.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false
+      });
+      fs.writeFileSync(target, pdf);
+      return { ok: true, format, path: target, label: path.basename(target) };
+    }
+
+    const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.jpg`);
+    const debuggerWasAttached = guest.debugger.isAttached();
+    try {
+      if (!debuggerWasAttached) guest.debugger.attach('1.3');
+      const result = await guest.debugger.sendCommand('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 95,
+        fromSurface: true,
+        captureBeyondViewport: true
+      });
+      fs.writeFileSync(target, Buffer.from(result.data, 'base64'));
+    } finally {
+      if (!debuggerWasAttached && guest.debugger.isAttached()) {
+        try { guest.debugger.detach(); } catch {}
+      }
+    }
+
+    return { ok: true, format, path: target, label: path.basename(target) };
   });
 
   ipcMain.handle('capture:get-media-source-id', (event, webContentsId) => {

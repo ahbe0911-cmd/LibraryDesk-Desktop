@@ -550,10 +550,10 @@
     const format = await askScreenshotFormat();
     if (!format) return;
 
+    const originalHtml = button.innerHTML;
     try {
       const id = webview.getWebContentsId();
       button.disabled = true;
-      const originalHtml = button.innerHTML;
       button.innerHTML = '<span class="capture-working">…</span>';
       button.title = 'در حال ذخیره صفحه کامل';
 
@@ -564,14 +564,16 @@
       );
       if (!result?.ok) return;
 
-      button.textContent = '✓';
+      button.innerHTML = '<span class="capture-done-check">✓</span>';
       button.title = `صفحه کامل ذخیره شد: ${result.path || result.label}`;
+      showToast('✓ ذخیره شد: ' + (result.label || (format === 'pdf' ? 'PDF' : 'JPG')), 'success');
       setTimeout(() => {
-        button.textContent = '▣';
+        button.innerHTML = originalHtml;
         button.title = 'ذخیره صفحه کامل به صورت JPG یا PDF';
       }, 1800);
     } catch (error) {
       alert('ذخیره صفحه انجام نشد: ' + (error?.message || error));
+      button.innerHTML = originalHtml;
     } finally {
       button.disabled = false;
       if (button.querySelector('.capture-working')) button.innerHTML = originalHtml;
@@ -1214,7 +1216,8 @@
         recovering: false,
         lastRecoveryAt: 0,
         checkTimer: null,
-        ready: false
+        ready: false,
+        blankChecks: 0
       });
     }
     return socialHealth.get(key);
@@ -1254,6 +1257,13 @@
         };
       })()`, true);
 
+      const health = socialHealthState(key);
+
+      if (state?.readyState !== 'complete') {
+        scheduleSocialHealthCheck(key, view, 900);
+        return false;
+      }
+
       const blank = !state ||
         state.bodyWidth < 40 ||
         state.bodyHeight < 40 ||
@@ -1265,12 +1275,18 @@
         );
 
       if (!blank) {
-        const health = socialHealthState(key);
         health.failures = 0;
         health.recovering = false;
         health.ready = true;
+        health.blankChecks = 0;
         if (key === activeSocial) hideSocialStatus();
         return true;
+      }
+
+      health.blankChecks += 1;
+      if (health.blankChecks < 2) {
+        scheduleSocialHealthCheck(key, view, 1200);
+        return false;
       }
     } catch {}
 
@@ -1411,7 +1427,7 @@
     if (view) {
       view.classList.remove('hidden');
       setSocialStatus('در حال آماده‌سازی ' + socialApps[key].name + '…', { loading: true });
-      setTimeout(() => inspectSocialView(key, view), 420);
+      setTimeout(() => inspectSocialView(key, view), 900);
     }
   }
 

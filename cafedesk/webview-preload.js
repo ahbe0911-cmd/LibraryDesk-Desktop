@@ -1,8 +1,10 @@
 const { ipcRenderer } = require('electron');
 
+const EBLAGH_CANONICAL_URL = 'https://eblagh.adliran.ir/';
 let lastFingerprint = '';
 let lastSentAt = 0;
 let savedCredentials = [];
+let scopeTimer = null;
 
 function textHint(input) {
   return [
@@ -14,31 +16,81 @@ function textHint(input) {
   ].filter(Boolean).join(' ');
 }
 
+function fieldContext(input) {
+  return [
+    textHint(input),
+    input?.previousElementSibling?.textContent,
+    input?.nextElementSibling?.textContent,
+    input?.parentElement?.textContent
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').slice(0, 1200);
+}
+
 function visibleInput(input) {
   if (!input || input.disabled || input.readOnly) return false;
   const style = getComputedStyle(input);
   return style.display !== 'none' && style.visibility !== 'hidden';
 }
 
+function isAdliranHost() {
+  const host = String(location.hostname || '').toLowerCase();
+  return host === 'adliran.ir' || host.endsWith('.adliran.ir');
+}
+
+function isEblaghLoginPage() {
+  if (!isAdliranHost()) return false;
+  const bodyText = String(document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 50000);
+  return /شماره\s*ملی|کد\s*ملی/.test(bodyText) &&
+    /رمز\s*شخصی|رمز\s*ثنا|سامانه\s*ابلاغ|احراز\s*هویت\s*ثنا/.test(bodyText);
+}
+
+function credentialScopeUrl() {
+  return isEblaghLoginPage() ? EBLAGH_CANONICAL_URL : location.href;
+}
+
+function notifyCredentialScope() {
+  clearTimeout(scopeTimer);
+  scopeTimer = setTimeout(() => {
+    if (isEblaghLoginPage()) {
+      ipcRenderer.sendToHost('credential-scope', { url: EBLAGH_CANONICAL_URL });
+    }
+  }, 80);
+}
+
 function loginFields() {
   const inputs = Array.from(document.querySelectorAll('input')).filter(visibleInput);
-  const passwordInput = inputs.find((input) => String(input.type || '').toLowerCase() === 'password');
-  if (!passwordInput) return { usernameInput: null, passwordInput: null };
+  const eblagh = isEblaghLoginPage();
+
+  let passwordInput = null;
+  if (eblagh) {
+    passwordInput = inputs.find((input) => /رمز\s*شخصی|رمز\s*ثنا|personal.*pass|password/i.test(fieldContext(input)));
+  }
+  passwordInput ||= inputs.find((input) => String(input.type || '').toLowerCase() === 'password');
+  if (!passwordInput) return { usernameInput: null, passwordInput: null, eblagh };
+
+  const passwordIndex = inputs.indexOf(passwordInput);
+  let usernameInput = null;
+
+  if (eblagh) {
+    usernameInput = inputs.find((input) =>
+      input !== passwordInput &&
+      /شماره\s*ملی|کد\s*ملی|national|melli/i.test(fieldContext(input))
+    );
+  }
 
   const usernameHint = /user|login|email|mail|phone|mobile|national|melli|identity|شناسه|کاربر|موبایل|همراه|ملی/i;
-  const passwordIndex = inputs.indexOf(passwordInput);
-
-  const usernameInput = inputs.find((input) => {
+  usernameInput ||= inputs.find((input) => {
     if (input === passwordInput) return false;
     const type = String(input.type || 'text').toLowerCase();
     if (!['text','email','tel','number'].includes(type)) return false;
     return usernameHint.test(textHint(input));
-  }) || inputs.slice(0, Math.max(0, passwordIndex)).reverse().find((input) => {
+  });
+
+  usernameInput ||= inputs.slice(0, Math.max(0, passwordIndex)).reverse().find((input) => {
     const type = String(input.type || 'text').toLowerCase();
     return ['text','email','tel','number'].includes(type);
   }) || null;
 
-  return { usernameInput, passwordInput };
+  return { usernameInput, passwordInput, eblagh };
 }
 
 function setNativeValue(input, value) {
@@ -74,9 +126,11 @@ function maybeAutofill() {
 function collectCredential() {
   const { usernameInput, passwordInput } = loginFields();
   if (!passwordInput?.value) return null;
+
   return {
-    url: location.href,
-    username: String(usernameInput?.value || ''),
+    url: credentialScopeUrl(),
+    actualUrl: location.href,
+    username: String(usernameInput?.value || '').trim(),
     password: String(passwordInput.value || '')
   };
 }
@@ -85,7 +139,7 @@ function captureCredential() {
   const payload = collectCredential();
   if (!payload?.password) return;
 
-  const fingerprint = [location.origin, payload.username, payload.password].join('\u0000');
+  const fingerprint = [payload.url, payload.username, payload.password].join('\u0000');
   const now = Date.now();
   if (fingerprint === lastFingerprint && now - lastSentAt < 8000) return;
 
@@ -101,10 +155,15 @@ function openInternalTab(url) {
 }
 
 function bind() {
-  const { usernameInput } = loginFields();
-  if (usernameInput) {
-    ['input', 'change', 'blur'].forEach((name) => usernameInput.addEventListener(name, maybeAutofill, true));
-  }
+  document.addEventListener('input', (event) => {
+    const { usernameInput } = loginFields();
+    if (event.target === usernameInput) setTimeout(maybeAutofill, 0);
+  }, true);
+
+  document.addEventListener('change', (event) => {
+    const { usernameInput } = loginFields();
+    if (event.target === usernameInput) setTimeout(maybeAutofill, 0);
+  }, true);
 
   document.addEventListener('submit', (event) => {
     const form = event.target;
@@ -154,13 +213,23 @@ function bind() {
     if (event.key === 'Enter') setTimeout(captureCredential, 50);
   }, true);
 
+  const observer = new MutationObserver(() => {
+    notifyCredentialScope();
+    setTimeout(maybeAutofill, 20);
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
   window.addEventListener('beforeunload', captureCredential, true);
+  notifyCredentialScope();
   setTimeout(maybeAutofill, 100);
-  setTimeout(maybeAutofill, 700);
+  setTimeout(maybeAutofill, 500);
+  setTimeout(maybeAutofill, 1200);
 }
 
 ipcRenderer.on('cafedesk:credentials', (_event, entries) => {
-  savedCredentials = Array.isArray(entries) ? entries.filter((entry) => entry && typeof entry === 'object') : [];
+  savedCredentials = Array.isArray(entries)
+    ? entries.filter((entry) => entry && typeof entry === 'object')
+    : [];
   maybeAutofill();
 });
 

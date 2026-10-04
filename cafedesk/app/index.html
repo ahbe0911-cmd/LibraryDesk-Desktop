@@ -20,6 +20,10 @@
     </div>
 
     <div class="top-actions">
+      <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
+      <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
+      <button id="openToolsBtn" class="ghost-btn tools-top-btn" type="button">ابزارها</button>
+
       <div class="zoom-control" title="اندازه صفحه اصلی">
         <span>صفحه</span>
         <select id="uiZoomSelect" aria-label="اندازه صفحه اصلی">
@@ -27,6 +31,7 @@
           <option value="90">۹۰٪</option>
           <option value="100" selected>۱۰۰٪</option>
           <option value="110">۱۱۰٪</option>
+          <option value="125">۱۲۵٪</option>
         </select>
       </div>
 
@@ -37,12 +42,11 @@
           <option value="90">۹۰٪</option>
           <option value="100" selected>۱۰۰٪</option>
           <option value="110">۱۱۰٪</option>
+          <option value="125">۱۲۵٪</option>
         </select>
       </div>
 
-      <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
-      <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
-      <span class="version" id="versionText">v1.0.1</span>
+      <span class="version" id="versionText">v1.0.2</span>
     </div>
   </header>
 
@@ -51,7 +55,14 @@
       <div class="hero-grid">
         <aside class="left-rail">
           <section class="clock-card glass">
-            <div class="section-kicker">ساعت کافی‌نت</div>
+            <div class="clock-head">
+              <div>
+                <div class="section-kicker">ساعت و تقویم</div>
+                <strong>امروز</strong>
+              </div>
+              <span class="clock-live-dot" aria-hidden="true"></span>
+            </div>
+
             <div class="clock-shell" aria-label="ساعت آنالوگ">
               <div class="clock">
                 <span class="tick-ring"></span>
@@ -65,16 +76,20 @@
                 <span class="clock-pin"></span>
               </div>
             </div>
-          </section>
 
-          <button id="openToolsBtn" class="tools-launch glass" type="button">
-            <span class="tools-launch-icon">✦</span>
-            <span>
-              <strong>ابزارها</strong>
-              <small>ماشین‌حساب و رمزساز</small>
-            </span>
-            <b>←</b>
-          </button>
+            <div id="jalaliDateText" class="jalali-date">—</div>
+
+            <div class="calendar-panel">
+              <div class="calendar-title-row">
+                <strong id="calendarMonthTitle">—</strong>
+                <span id="calendarYearTitle">—</span>
+              </div>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span>
+              </div>
+              <div id="calendarGrid" class="calendar-grid"></div>
+            </div>
+          </section>
         </aside>
 
         <section class="sites-card glass">
@@ -82,7 +97,7 @@
             <div>
               <div class="section-kicker">دسترسی سریع</div>
               <h2>سایت‌ها</h2>
-              <p>برای تعداد زیاد سایت طراحی شده؛ کارت‌ها کوچک، سریع و رنگی هستند.</p>
+              <p>کارت‌های کوچک برای دسترسی سریع؛ مناسب حتی برای تعداد زیاد سایت.</p>
             </div>
             <button id="addSiteBtn" class="primary-btn" type="button">＋ افزودن سایت</button>
           </div>
@@ -94,68 +109,31 @@
           </div>
 
           <div id="sitesGrid" class="sites-grid"></div>
-          <div id="sitesEmpty" class="empty-state">
-            هنوز سایتی اضافه نشده است.
-          </div>
+          <div id="sitesEmpty" class="empty-state">هنوز سایتی اضافه نشده است.</div>
         </section>
       </div>
     </section>
 
     <section id="workspaceView" class="workspace-view hidden">
-      <div class="workspace-top glass">
-        <div>
-          <div class="section-kicker">دو پنل کاملاً جدا</div>
-          <h2>مرور هم‌زمان دو سایت</h2>
-          <p>هر پنل مستقل باز و بسته می‌شود و Session جدا دارد.</p>
-        </div>
-        <button id="backDashboardBtn" class="ghost-btn" type="button">بازگشت به سایت‌ها</button>
-      </div>
-
       <div class="dual-shell">
-        <section class="browser-pane glass active-pane" data-pane="right">
-          <div class="pane-toolbar">
-            <button class="pane-select" data-activate-pane="right" type="button">
-              <span class="pane-light"></span>
-              <span id="rightTitle">پنجره راست</span>
-            </button>
-            <div class="pane-actions">
-              <button class="choose-site-btn" data-choose-site="right" type="button">انتخاب سایت</button>
-              <button data-browser-action="back" data-side="right" title="عقب">‹</button>
-              <button data-browser-action="forward" data-side="right" title="جلو">›</button>
-              <button data-browser-action="reload" data-side="right" title="بارگذاری مجدد">↻</button>
-              <button class="close-pane-btn" data-browser-action="home" data-side="right" title="بستن این پنل">×</button>
-            </div>
-          </div>
-          <div class="webview-slot" id="rightSlot">
-            <div class="pane-placeholder" data-activate-pane="right">
-              <strong>پنجره راست</strong>
-              <span>یک سایت انتخاب کنید؛ فقط همین نیمه باز می‌شود.</span>
-              <button class="placeholder-choose" data-choose-site="right" type="button">انتخاب سایت</button>
+        <section class="pane-host active-pane" data-pane="right">
+          <div class="empty-pane" id="rightSlot" data-empty-side="right">
+            <div class="empty-pane-inner">
+              <span class="empty-plus">＋</span>
+              <strong>نیمه راست خالی است</strong>
+              <small>برای انتخاب سایت کلیک کنید</small>
             </div>
           </div>
         </section>
 
         <div class="split-line"></div>
 
-        <section class="browser-pane glass" data-pane="left">
-          <div class="pane-toolbar">
-            <button class="pane-select" data-activate-pane="left" type="button">
-              <span class="pane-light"></span>
-              <span id="leftTitle">پنجره چپ</span>
-            </button>
-            <div class="pane-actions">
-              <button class="choose-site-btn" data-choose-site="left" type="button">انتخاب سایت</button>
-              <button data-browser-action="back" data-side="left" title="عقب">‹</button>
-              <button data-browser-action="forward" data-side="left" title="جلو">›</button>
-              <button data-browser-action="reload" data-side="left" title="بارگذاری مجدد">↻</button>
-              <button class="close-pane-btn" data-browser-action="home" data-side="left" title="بستن این پنل">×</button>
-            </div>
-          </div>
-          <div class="webview-slot" id="leftSlot">
-            <div class="pane-placeholder" data-activate-pane="left">
-              <strong>پنجره چپ</strong>
-              <span>این نیمه مستقل است و تا انتخاب شما خالی می‌ماند.</span>
-              <button class="placeholder-choose" data-choose-site="left" type="button">انتخاب سایت</button>
+        <section class="pane-host" data-pane="left">
+          <div class="empty-pane" id="leftSlot" data-empty-side="left">
+            <div class="empty-pane-inner">
+              <span class="empty-plus">＋</span>
+              <strong>نیمه چپ خالی است</strong>
+              <small>سایت دوم را اینجا باز کنید</small>
             </div>
           </div>
         </section>
@@ -196,15 +174,17 @@
     <div class="dialog-card picker-card">
       <div class="dialog-head">
         <div>
-          <div class="section-kicker">انتخاب برای پنجره <span id="pickerSideLabel">راست</span></div>
+          <div class="section-kicker">انتخاب برای نیمه <span id="pickerSideLabel">راست</span></div>
           <h3>انتخاب سایت</h3>
         </div>
         <button id="closePickerBtn" class="dialog-close" type="button">×</button>
       </div>
+
       <div class="quick-search-wrap picker-search">
         <span class="search-icon">⌕</span>
         <input id="pickerSearchInput" type="search" autocomplete="off" placeholder="نام سایت را جستجو کنید..." />
       </div>
+
       <div id="pickerSitesGrid" class="picker-sites-grid"></div>
       <div id="pickerEmpty" class="picker-empty">سایتی برای نمایش پیدا نشد.</div>
     </div>
@@ -214,7 +194,7 @@
     <div class="dialog-card tools-dialog-card">
       <div class="dialog-head">
         <div>
-          <div class="section-kicker">جعبه ابزار</div>
+          <div class="section-kicker">ابزارهای سریع</div>
           <h3>ابزارها</h3>
         </div>
         <button id="closeToolsBtn" class="dialog-close" type="button">×</button>
@@ -226,27 +206,20 @@
             <span class="tool-dot cyan"></span>
             <div>
               <strong>ماشین‌حساب</strong>
-              <small>سریع و جمع‌وجور</small>
+              <small>محاسبات سریع</small>
             </div>
           </div>
+
           <input id="calcDisplay" class="calc-display" value="0" readonly />
           <div class="calc-keys" id="calcKeys">
             <button data-calc="C">C</button>
             <button data-calc="⌫">⌫</button>
             <button data-calc="%">%</button>
             <button class="op" data-calc="÷">÷</button>
-
-            <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button>
-            <button class="op" data-calc="×">×</button>
-
-            <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button>
-            <button class="op" data-calc="-">−</button>
-
-            <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button>
-            <button class="op" data-calc="+">+</button>
-
-            <button data-calc="0" class="wide">0</button><button data-calc=".">.</button>
-            <button class="equal" data-calc="=">=</button>
+            <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button><button class="op" data-calc="×">×</button>
+            <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button><button class="op" data-calc="-">−</button>
+            <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button><button class="op" data-calc="+">+</button>
+            <button data-calc="0" class="wide">0</button><button data-calc=".">.</button><button class="equal" data-calc="=">=</button>
           </div>
         </article>
 

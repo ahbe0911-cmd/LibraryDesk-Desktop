@@ -33,3 +33,25 @@ assert(main.includes("downloads:choose-folder"), 'download-folder chooser IPC mi
 assert(main.includes("item.setSavePath(nextAvailableDownloadPath"), 'downloads are not routed to the configured folder');
 
 console.log('CafeDesk 1.0.5 regression checks passed.');
+
+
+const preload = read('preload.js');
+const guestPreload = read('webview-preload.js');
+
+assert(main.includes("host.send('cafedesk:guest-open-tab'"), 'new-window requests must be routed into CafeDesk');
+assert(!main.includes("action: 'allow',\n        overrideBrowserWindowOptions"), 'guest popups must not create external BrowserWindow windows');
+assert(app.includes('pane-tabbar'), 'internal pane tabs missing');
+assert(app.includes('openInternalTab'), 'internal tab routing missing');
+assert(app.includes('captureScreenshot'), 'screenshot UI missing');
+assert(app.includes('toggleRecording'), 'screen recorder UI missing');
+assert(main.includes("capture:get-media-source-id"), 'tab media capture IPC missing');
+assert(main.includes("guest.getMediaSourceId(event.sender)"), 'recording must capture the selected guest WebContents');
+assert(main.includes("guest.capturePage()"), 'screenshot must capture the selected guest WebContents');
+assert(app.includes('getCredentials'), 'multi-account password retrieval missing');
+assert(main.includes('function listCredentials()'), 'password manager list missing');
+assert(guestPreload.includes('savedCredentials'), 'guest autofill state missing');
+assert(guestPreload.includes('typedUsername'), 'username-matched password autofill missing');
+assert(css.includes('max-width:430px'), 'social browser portrait width missing');
+assert(main.includes("persist:cafedesk-social-") && main.includes('MOBILE_UA'), 'social mobile user-agent switching missing');
+
+console.log('CafeDesk 1.0.6 extended regression checks passed.');

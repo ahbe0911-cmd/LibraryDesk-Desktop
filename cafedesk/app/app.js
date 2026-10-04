@@ -1304,6 +1304,17 @@
     health.failures += 1;
     health.ready = false;
 
+    if (health.failures > 3) {
+      health.recovering = false;
+      if (key === activeSocial) {
+        setSocialStatus(
+          socialApps[key].name + ' هنوز پاسخ نداده است. برای بازسازی کامل دوباره تلاش کنید.',
+          { retry: true, loading: false }
+        );
+      }
+      return;
+    }
+
     if (key === activeSocial) {
       setSocialStatus('در حال بازیابی ' + socialApps[key].name + '…', { loading: true });
     }
@@ -1327,6 +1338,8 @@
         try { view?.reload(); } catch {}
       }
     }
+
+    if (!hardRepair) health.recovering = false;
 
     setTimeout(() => {
       const next = socialViews.get(key);
@@ -1360,6 +1373,7 @@
 
     view.addEventListener('did-start-loading', () => {
       health.ready = false;
+      health.blankChecks = 0;
       if (key === activeSocial) {
         setSocialStatus('در حال بارگذاری ' + appInfo.name + '…', { loading: true });
       }
@@ -1608,6 +1622,7 @@
     printFolderPanel?.classList.remove('hidden');
     setPrintFolderViewMode(printFolderViewMode);
     await loadPrintFolder('');
+    printFolderPanel?.focus();
   }
 
   openPrintFolderSocialBtn?.addEventListener('click', showPrintFolder);
@@ -1664,6 +1679,10 @@
   });
 
   socialRetryBtn?.addEventListener('click', () => {
+    const health = socialHealthState(activeSocial);
+    health.failures = 0;
+    health.blankChecks = 0;
+    health.recovering = false;
     recoverSocialView(activeSocial, 'درخواست کاربر', true);
   });
 

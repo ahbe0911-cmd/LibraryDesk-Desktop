@@ -3,14 +3,20 @@ const path = require('path');
 
 app.setName('CafeDesk');
 
+function clampZoom(percent) {
+  const value = Number(percent);
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(1.5, Math.max(0.5, value / 100));
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1600,
     height: 980,
     minWidth: 1180,
-    minHeight: 760,
+    minHeight: 720,
     show: false,
-    backgroundColor: '#0c1728',
+    backgroundColor: '#091321',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -39,15 +45,19 @@ app.whenReady().then(() => {
 
   ipcMain.handle('app:version', () => app.getVersion());
 
+  ipcMain.handle('ui:set-zoom', (event, percent) => {
+    const factor = clampZoom(percent);
+    event.sender.setZoomFactor(factor);
+    return factor;
+  });
+
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
 
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() !== 'webview') return;
 
     contents.setWindowOpenHandler(({ url }) => {
-      if (/^https?:/i.test(url)) {
-        contents.loadURL(url).catch(() => {});
-      }
+      if (/^https?:/i.test(url)) contents.loadURL(url).catch(() => {});
       return { action: 'deny' };
     });
 

@@ -497,3 +497,203 @@ body.workspace-mode .page{
   .sites-card{min-height:620px;max-height:none}
   .tools-modal-grid{grid-template-columns:1fr}
 }
+
+
+/* ===== CafeDesk 1.0.3 refinements ===== */
+.social-top-btn::before{
+  content:"◉";margin-left:5px;color:#7ee4d9
+}
+
+/* Per-tab zoom lives inside each browser toolbar */
+.pane-zoom{
+  height:29px;display:flex;align-items:center;gap:4px;padding:0 5px;
+  border:1px solid rgba(255,255,255,.075);border-radius:8px;
+  background:rgba(255,255,255,.045);color:#8fa8be
+}
+.pane-zoom span{font-size:7px;white-space:nowrap}
+.pane-zoom select{
+  height:23px;min-width:58px;border:0;outline:0;border-radius:6px;
+  color:#e9f7ff;background:#132840;padding:0 4px;
+  font-family:"Vazirmatn","FarNazanin",sans-serif;font-size:8px
+}
+
+/* Make guest pages occupy the complete pane instead of collapsing to the content height */
+.browser-shell{
+  min-height:0!important;
+  overflow:hidden!important;
+}
+.webview-frame{
+  flex:1 1 0!important;
+  min-height:0!important;
+  position:relative!important;
+  display:block!important;
+  overflow:hidden!important;
+  background:#fff!important
+}
+.webview-frame webview{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:100%!important;
+  display:flex!important;
+  background:#fff!important
+}
+
+/* Social networks: vertical rail + full-height web app */
+.social-dialog{
+  width:min(1320px,calc(100% - 24px));
+  max-width:none
+}
+.social-dialog-card{
+  height:min(820px,calc(100vh - 36px));
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden
+}
+.social-dialog-head{
+  flex:none;
+  margin-bottom:10px;
+  padding:0 2px 8px;
+  border-bottom:1px solid rgba(255,255,255,.065)
+}
+.social-layout{
+  direction:rtl;
+  display:grid;
+  grid-template-columns:158px minmax(0,1fr);
+  gap:10px;
+  flex:1;
+  min-height:0
+}
+.social-nav{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  min-height:0
+}
+.social-nav-btn{
+  width:100%;
+  min-height:66px;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  padding:8px;
+  border-radius:15px;
+  border:1px solid rgba(255,255,255,.075);
+  background:rgba(255,255,255,.035);
+  color:#edf8ff;
+  text-align:right;
+  transition:.14s ease
+}
+.social-nav-btn:hover,
+.social-nav-btn.active{
+  transform:translateX(-2px);
+  background:linear-gradient(135deg,rgba(53,217,209,.14),rgba(111,137,255,.08));
+  border-color:rgba(53,217,209,.26)
+}
+.social-nav-btn>span:last-child{min-width:0;display:grid;gap:2px}
+.social-nav-btn strong{
+  font-family:"FarTitr","Vazirmatn",sans-serif;
+  font-size:11px;
+  font-weight:700
+}
+.social-nav-btn small{
+  direction:ltr;
+  text-align:right;
+  color:#829ab0;
+  font-size:7px
+}
+.social-badge{
+  width:42px;height:42px;border-radius:13px;
+  display:grid;place-items:center;
+  color:#fff;font-family:"FarTitr","Vazirmatn",sans-serif;font-size:16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 20px rgba(0,0,0,.15)
+}
+.social-badge.rubika{background:linear-gradient(145deg,#4768ff,#7b4fe1)}
+.social-badge.shad{background:linear-gradient(145deg,#24a2db,#426ee8)}
+.social-badge.eitaa{background:linear-gradient(145deg,#ef8d36,#d7653d)}
+.social-badge.telegram{background:linear-gradient(145deg,#229ed9,#187ec3)}
+.social-browser{
+  min-width:0;min-height:0;
+  display:flex;flex-direction:column;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:17px;
+  overflow:hidden;
+  background:#fff
+}
+.social-browser-bar{
+  height:42px;flex:none;
+  padding:5px 8px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  direction:rtl;
+  background:linear-gradient(180deg,#11253b,#0c1c30);
+  border-bottom:1px solid rgba(255,255,255,.07)
+}
+.social-browser-bar>div{
+  display:flex;align-items:center;gap:7px;color:#eef9ff
+}
+.social-browser-bar strong{font-size:10px}
+.social-live-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#4ce0cf;
+  box-shadow:0 0 12px rgba(76,224,207,.58)
+}
+.social-reload-btn{
+  height:28px;padding:0 9px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.05);color:#ddecf6;font-size:8px
+}
+.social-webview-host{
+  position:relative;
+  flex:1 1 0;
+  min-height:0;
+  overflow:hidden;
+  background:#fff
+}
+.social-webview{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  display:flex!important;
+  background:#fff!important
+}
+.social-webview.hidden{display:none!important}
+
+/* Slightly more polished tools without changing their behavior */
+.tools-dialog-card{
+  background:
+    radial-gradient(circle at 8% 5%,rgba(255,125,184,.10),transparent 26%),
+    radial-gradient(circle at 92% 3%,rgba(53,217,209,.09),transparent 25%),
+    linear-gradient(145deg,rgba(29,49,72,.99),rgba(10,22,39,.99))
+}
+.tool.calculator{
+  background:
+    linear-gradient(145deg,rgba(53,217,209,.07),rgba(255,255,255,.018));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)
+}
+.tool.password{
+  background:
+    linear-gradient(145deg,rgba(255,125,184,.07),rgba(255,255,255,.018));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)
+}
+.calc-keys button{
+  transition:.12s ease
+}
+.calc-keys button:active{
+  transform:scale(.96)
+}
+.password-preview input,
+.calc-display{
+  box-shadow:inset 0 1px 7px rgba(0,0,0,.15)
+}
+
+@media(max-width:1100px){
+  .social-layout{grid-template-columns:130px minmax(0,1fr)}
+  .social-nav-btn{grid-template-columns:36px minmax(0,1fr);min-height:58px}
+  .social-badge{width:36px;height:36px;border-radius:11px;font-size:14px}
+  .pane-zoom span{display:none}
+  .pane-zoom select{min-width:52px}
+}

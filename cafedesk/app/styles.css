@@ -263,3 +263,29 @@ button{cursor:pointer}
   .tick-ring{-webkit-mask:radial-gradient(circle,transparent 0 63px,#000 64px 71px,transparent 72px);mask:radial-gradient(circle,transparent 0 63px,#000 64px 71px,transparent 72px)}
   .num{font-size:16px}.hour{height:39px}.minute{height:55px}.second{height:62px}
 }
+
+
+/* CafeDesk runtime states */
+.pane-loading,.pane-error{
+  position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;gap:10px;
+  text-align:center;padding:20px;font-size:11px
+}
+.pane-loading{background:linear-gradient(145deg,rgba(238,245,248,.96),rgba(221,233,239,.94));color:#405462}
+.pane-error{background:linear-gradient(145deg,#fff4f5,#f6e7e9);color:#9a4050}
+.spinner{
+  width:20px;height:20px;border-radius:50%;border:2px solid rgba(22,120,114,.20);
+  border-top-color:#16a99b;animation:cafeSpin .75s linear infinite
+}
+@keyframes cafeSpin{to{transform:rotate(360deg)}}
+.workspace-empty{color:#8fa3b9;font-size:10px;padding:10px 4px}
+@media(max-width:900px){
+  .topbar,.page{width:calc(100% - 16px)}
+  .topbar{top:8px;margin-top:8px}
+  .hero-grid{display:flex;flex-direction:column}
+  .clock-card,.sites-card,.tools-card{min-height:0}
+  .sites-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dual-shell{grid-template-columns:1fr;height:auto;min-height:0}
+  .split-line{height:5px}
+  .browser-pane{min-height:520px}
+  .workspace-sites{align-items:flex-start;flex-direction:column}
+}

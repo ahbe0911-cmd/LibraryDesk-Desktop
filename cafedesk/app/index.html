@@ -20,105 +20,82 @@
     </div>
 
     <div class="top-actions">
+      <div class="zoom-control" title="اندازه صفحه اصلی">
+        <span>صفحه</span>
+        <select id="uiZoomSelect" aria-label="اندازه صفحه اصلی">
+          <option value="80">۸۰٪</option>
+          <option value="90">۹۰٪</option>
+          <option value="100" selected>۱۰۰٪</option>
+          <option value="110">۱۱۰٪</option>
+        </select>
+      </div>
+
+      <div class="zoom-control" title="اندازه سایت‌ها">
+        <span>سایت</span>
+        <select id="siteZoomSelect" aria-label="اندازه سایت‌ها">
+          <option value="80">۸۰٪</option>
+          <option value="90">۹۰٪</option>
+          <option value="100" selected>۱۰۰٪</option>
+          <option value="110">۱۱۰٪</option>
+        </select>
+      </div>
+
       <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
       <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
-      <span class="version" id="versionText">v1.0.0</span>
+      <span class="version" id="versionText">v1.0.1</span>
     </div>
   </header>
 
   <main class="page">
     <section id="dashboardView" class="dashboard-view">
       <div class="hero-grid">
-        <aside class="clock-card glass">
-          <div class="section-kicker">ساعت کافی‌نت</div>
-          <div class="clock-shell" aria-label="ساعت آنالوگ">
-            <div class="clock">
-              <span class="tick-ring"></span>
-              <span class="num n12">12</span><span class="num n1">1</span><span class="num n2">2</span>
-              <span class="num n3">3</span><span class="num n4">4</span><span class="num n5">5</span>
-              <span class="num n6">6</span><span class="num n7">7</span><span class="num n8">8</span>
-              <span class="num n9">9</span><span class="num n10">10</span><span class="num n11">11</span>
-              <span id="hourHand" class="hand hour"></span>
-              <span id="minuteHand" class="hand minute"></span>
-              <span id="secondHand" class="hand second"></span>
-              <span class="clock-pin"></span>
+        <aside class="left-rail">
+          <section class="clock-card glass">
+            <div class="section-kicker">ساعت کافی‌نت</div>
+            <div class="clock-shell" aria-label="ساعت آنالوگ">
+              <div class="clock">
+                <span class="tick-ring"></span>
+                <span class="num n12">12</span><span class="num n1">1</span><span class="num n2">2</span>
+                <span class="num n3">3</span><span class="num n4">4</span><span class="num n5">5</span>
+                <span class="num n6">6</span><span class="num n7">7</span><span class="num n8">8</span>
+                <span class="num n9">9</span><span class="num n10">10</span><span class="num n11">11</span>
+                <span id="hourHand" class="hand hour"></span>
+                <span id="minuteHand" class="hand minute"></span>
+                <span id="secondHand" class="hand second"></span>
+                <span class="clock-pin"></span>
+              </div>
             </div>
-          </div>
-          <div class="clock-caption">ساده، زنده و همیشه در دسترس</div>
+          </section>
+
+          <button id="openToolsBtn" class="tools-launch glass" type="button">
+            <span class="tools-launch-icon">✦</span>
+            <span>
+              <strong>ابزارها</strong>
+              <small>ماشین‌حساب و رمزساز</small>
+            </span>
+            <b>←</b>
+          </button>
         </aside>
 
         <section class="sites-card glass">
-          <div class="section-head">
+          <div class="section-head sites-head">
             <div>
               <div class="section-kicker">دسترسی سریع</div>
               <h2>سایت‌ها</h2>
-              <p>سایت‌های پرکاربرد را با نام دلخواه ذخیره کنید.</p>
+              <p>برای تعداد زیاد سایت طراحی شده؛ کارت‌ها کوچک، سریع و رنگی هستند.</p>
             </div>
             <button id="addSiteBtn" class="primary-btn" type="button">＋ افزودن سایت</button>
+          </div>
+
+          <div class="quick-search-wrap">
+            <span class="search-icon">⌕</span>
+            <input id="siteSearchInput" type="search" autocomplete="off" placeholder="جستجوی سریع بین سایت‌ها..." />
+            <span id="siteCount" class="site-count">۰ سایت</span>
           </div>
 
           <div id="sitesGrid" class="sites-grid"></div>
           <div id="sitesEmpty" class="empty-state">
             هنوز سایتی اضافه نشده است.
-          </div>
-        </section>
-
-        <section class="tools-card glass">
-          <div class="section-head compact">
-            <div>
-              <div class="section-kicker">ابزارهای سریع</div>
-              <h2>ابزارها</h2>
-            </div>
-          </div>
-
-          <div class="tools-grid">
-            <article class="tool calculator">
-              <div class="tool-title">
-                <span class="tool-dot cyan"></span>
-                <strong>ماشین‌حساب</strong>
-              </div>
-              <input id="calcDisplay" class="calc-display" value="0" readonly />
-              <div class="calc-keys" id="calcKeys">
-                <button data-calc="C">C</button>
-                <button data-calc="⌫">⌫</button>
-                <button data-calc="%">%</button>
-                <button class="op" data-calc="÷">÷</button>
-
-                <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button>
-                <button class="op" data-calc="×">×</button>
-
-                <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button>
-                <button class="op" data-calc="-">−</button>
-
-                <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button>
-                <button class="op" data-calc="+">+</button>
-
-                <button data-calc="0" class="wide">0</button><button data-calc=".">.</button>
-                <button class="equal" data-calc="=">=</button>
-              </div>
-            </article>
-
-            <article class="tool password">
-              <div class="tool-title">
-                <span class="tool-dot pink"></span>
-                <strong>رمزساز</strong>
-              </div>
-              <label class="field-label" for="passwordLength">طول رمز</label>
-              <div class="range-row">
-                <input id="passwordLength" type="range" min="10" max="32" value="16" />
-                <span id="passwordLengthValue">16</span>
-              </div>
-              <div class="password-box">
-                <input id="passwordOutput" readonly />
-                <button id="copyPasswordBtn" class="mini-btn" type="button">کپی</button>
-              </div>
-              <label class="switch-row">
-                <input id="autoCopyPassword" type="checkbox" checked />
-                <span>کپی خودکار بعد از ساخت رمز</span>
-              </label>
-              <button id="generatePasswordBtn" class="accent-btn" type="button">ساخت رمز جدید</button>
-              <div id="copyStatus" class="status-line"></div>
-            </article>
           </div>
         </section>
       </div>
@@ -127,11 +104,11 @@
     <section id="workspaceView" class="workspace-view hidden">
       <div class="workspace-top glass">
         <div>
-          <div class="section-kicker">نمای دوگانه مستقل</div>
-          <h2>دو پنجره هم‌زمان</h2>
-          <p>هر سمت Session جدا دارد؛ حتی اگر یک سایت را دو بار باز کنید.</p>
+          <div class="section-kicker">دو پنل کاملاً جدا</div>
+          <h2>مرور هم‌زمان دو سایت</h2>
+          <p>هر پنل مستقل باز و بسته می‌شود و Session جدا دارد.</p>
         </div>
-        <button id="backDashboardBtn" class="ghost-btn" type="button">بازگشت به کارت‌ها</button>
+        <button id="backDashboardBtn" class="ghost-btn" type="button">بازگشت به سایت‌ها</button>
       </div>
 
       <div class="dual-shell">
@@ -142,16 +119,18 @@
               <span id="rightTitle">پنجره راست</span>
             </button>
             <div class="pane-actions">
+              <button class="choose-site-btn" data-choose-site="right" type="button">انتخاب سایت</button>
               <button data-browser-action="back" data-side="right" title="عقب">‹</button>
               <button data-browser-action="forward" data-side="right" title="جلو">›</button>
               <button data-browser-action="reload" data-side="right" title="بارگذاری مجدد">↻</button>
-              <button data-browser-action="home" data-side="right" title="بستن صفحه">×</button>
+              <button class="close-pane-btn" data-browser-action="home" data-side="right" title="بستن این پنل">×</button>
             </div>
           </div>
           <div class="webview-slot" id="rightSlot">
-            <div class="pane-placeholder">
+            <div class="pane-placeholder" data-activate-pane="right">
               <strong>پنجره راست</strong>
-              <span>یک کارت سایت را انتخاب کنید.</span>
+              <span>یک سایت انتخاب کنید؛ فقط همین نیمه باز می‌شود.</span>
+              <button class="placeholder-choose" data-choose-site="right" type="button">انتخاب سایت</button>
             </div>
           </div>
         </section>
@@ -165,27 +144,21 @@
               <span id="leftTitle">پنجره چپ</span>
             </button>
             <div class="pane-actions">
+              <button class="choose-site-btn" data-choose-site="left" type="button">انتخاب سایت</button>
               <button data-browser-action="back" data-side="left" title="عقب">‹</button>
               <button data-browser-action="forward" data-side="left" title="جلو">›</button>
               <button data-browser-action="reload" data-side="left" title="بارگذاری مجدد">↻</button>
-              <button data-browser-action="home" data-side="left" title="بستن صفحه">×</button>
+              <button class="close-pane-btn" data-browser-action="home" data-side="left" title="بستن این پنل">×</button>
             </div>
           </div>
           <div class="webview-slot" id="leftSlot">
-            <div class="pane-placeholder">
+            <div class="pane-placeholder" data-activate-pane="left">
               <strong>پنجره چپ</strong>
-              <span>برای فعال شدن روی این سمت کلیک کنید.</span>
+              <span>این نیمه مستقل است و تا انتخاب شما خالی می‌ماند.</span>
+              <button class="placeholder-choose" data-choose-site="left" type="button">انتخاب سایت</button>
             </div>
           </div>
         </section>
-      </div>
-
-      <div class="workspace-sites glass">
-        <div>
-          <strong>باز کردن سایت در پنجره انتخاب‌شده</strong>
-          <span>روی کارت بزنید؛ پنجره فعال با حاشیه روشن مشخص است.</span>
-        </div>
-        <div id="workspaceSites" class="workspace-site-list"></div>
       </div>
     </section>
   </main>
@@ -217,6 +190,96 @@
         <button id="saveSiteBtn" class="primary-btn" value="default" type="button">ذخیره سایت</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="sitePickerDialog" class="site-dialog picker-dialog">
+    <div class="dialog-card picker-card">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">انتخاب برای پنجره <span id="pickerSideLabel">راست</span></div>
+          <h3>انتخاب سایت</h3>
+        </div>
+        <button id="closePickerBtn" class="dialog-close" type="button">×</button>
+      </div>
+      <div class="quick-search-wrap picker-search">
+        <span class="search-icon">⌕</span>
+        <input id="pickerSearchInput" type="search" autocomplete="off" placeholder="نام سایت را جستجو کنید..." />
+      </div>
+      <div id="pickerSitesGrid" class="picker-sites-grid"></div>
+      <div id="pickerEmpty" class="picker-empty">سایتی برای نمایش پیدا نشد.</div>
+    </div>
+  </dialog>
+
+  <dialog id="toolsDialog" class="site-dialog tools-dialog">
+    <div class="dialog-card tools-dialog-card">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">جعبه ابزار</div>
+          <h3>ابزارها</h3>
+        </div>
+        <button id="closeToolsBtn" class="dialog-close" type="button">×</button>
+      </div>
+
+      <div class="tools-modal-grid">
+        <article class="tool calculator">
+          <div class="tool-title">
+            <span class="tool-dot cyan"></span>
+            <div>
+              <strong>ماشین‌حساب</strong>
+              <small>سریع و جمع‌وجور</small>
+            </div>
+          </div>
+          <input id="calcDisplay" class="calc-display" value="0" readonly />
+          <div class="calc-keys" id="calcKeys">
+            <button data-calc="C">C</button>
+            <button data-calc="⌫">⌫</button>
+            <button data-calc="%">%</button>
+            <button class="op" data-calc="÷">÷</button>
+
+            <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button>
+            <button class="op" data-calc="×">×</button>
+
+            <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button>
+            <button class="op" data-calc="-">−</button>
+
+            <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button>
+            <button class="op" data-calc="+">+</button>
+
+            <button data-calc="0" class="wide">0</button><button data-calc=".">.</button>
+            <button class="equal" data-calc="=">=</button>
+          </div>
+        </article>
+
+        <article class="tool password">
+          <div class="tool-title">
+            <span class="tool-dot pink"></span>
+            <div>
+              <strong>رمزساز</strong>
+              <small>رمز قوی با کپی سریع</small>
+            </div>
+          </div>
+
+          <div class="password-preview">
+            <input id="passwordOutput" readonly />
+            <button id="copyPasswordBtn" class="copy-password-btn" type="button">کپی</button>
+          </div>
+
+          <label class="field-label" for="passwordLength">طول رمز</label>
+          <div class="range-row">
+            <input id="passwordLength" type="range" min="10" max="32" value="16" />
+            <span id="passwordLengthValue">16</span>
+          </div>
+
+          <label class="switch-row">
+            <input id="autoCopyPassword" type="checkbox" checked />
+            <span>بعد از ساخت، خودکار کپی شود</span>
+          </label>
+
+          <button id="generatePasswordBtn" class="password-generate-btn" type="button">ساخت رمز جدید</button>
+          <div id="copyStatus" class="status-line"></div>
+        </article>
+      </div>
+    </div>
   </dialog>
 
   <script src="./app.js"></script>

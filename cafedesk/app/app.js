@@ -50,6 +50,20 @@
   const reloadSocialBtn = $('reloadSocialBtn');
   const socialTitle = $('socialTitle');
   const socialWebviewHost = $('socialWebviewHost');
+  const socialBrowserPanel = $('socialBrowserPanel');
+  const openPrintFolderSocialBtn = $('openPrintFolderSocialBtn');
+  const printFolderPanel = $('printFolderPanel');
+  const printFolderPath = $('printFolderPath');
+  const printFolderList = $('printFolderList');
+  const printFolderEmpty = $('printFolderEmpty');
+  const printFolderBackBtn = $('printFolderBackBtn');
+  const refreshPrintFolderBtn = $('refreshPrintFolderBtn');
+  const openPrintFolderWindowsBtn = $('openPrintFolderWindowsBtn');
+
+  const screenshotFormatDialog = $('screenshotFormatDialog');
+  const cancelScreenshotFormatBtn = $('cancelScreenshotFormatBtn');
+  const saveScreenshotJpgBtn = $('saveScreenshotJpgBtn');
+  const saveScreenshotPdfBtn = $('saveScreenshotPdfBtn');
 
   const uiZoomSelect = $('uiZoomSelect');
 
@@ -97,6 +111,8 @@
   const recordingStates = new Map();
   let tabSequence = 0;
   let activeSocial = 'rubika';
+  let currentPrintFolderPath = '';
+  let screenshotChoiceResolver = null;
 
   const socialApps = {
     rubika: { name: 'روبیکا', url: 'https://m.rubika.ir/' },
@@ -461,25 +477,76 @@
       return;
     }
 
+    if (event.channel === 'credential-scope') {
+      const data = event.args?.[0] || {};
+      const scopeUrl = String(data.url || '');
+      if (/^https?:/i.test(scopeUrl)) {
+        try {
+          const entries = await window.cafeDesk.getCredentials(scopeUrl);
+          webview.send('cafedesk:credentials', Array.isArray(entries) ? entries : []);
+        } catch {}
+      }
+      return;
+    }
+
     if (event.channel === 'credential-submitted') {
       await handleCredentialSubmitted(webview, event.args?.[0] || {});
     }
   }
 
+  function askScreenshotFormat() {
+    if (!screenshotFormatDialog) return Promise.resolve('jpg');
+    if (screenshotFormatDialog.open) return Promise.resolve(null);
+
+    return new Promise((resolve) => {
+      screenshotChoiceResolver = resolve;
+      screenshotFormatDialog.showModal();
+    });
+  }
+
+  function resolveScreenshotFormat(value) {
+    if (screenshotFormatDialog?.open) screenshotFormatDialog.close();
+    const resolve = screenshotChoiceResolver;
+    screenshotChoiceResolver = null;
+    resolve?.(value);
+  }
+
+  cancelScreenshotFormatBtn?.addEventListener('click', () => resolveScreenshotFormat(null));
+  saveScreenshotJpgBtn?.addEventListener('click', () => resolveScreenshotFormat('jpg'));
+  saveScreenshotPdfBtn?.addEventListener('click', () => resolveScreenshotFormat('pdf'));
+  screenshotFormatDialog?.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    resolveScreenshotFormat(null);
+  });
+
   async function captureScreenshot(webview, button, site) {
+    const format = await askScreenshotFormat();
+    if (!format) return;
+
     try {
       const id = webview.getWebContentsId();
-      const result = await window.cafeDesk.captureScreenshot(id, site?.name || hostLabel(webview.getURL()) || 'CafeDesk');
+      button.disabled = true;
+      button.textContent = '…';
+      button.title = 'در حال ذخیره صفحه کامل';
+
+      const result = await window.cafeDesk.exportPageCapture(
+        id,
+        site?.name || hostLabel(webview.getURL()) || 'CafeDesk',
+        format
+      );
       if (!result?.ok) return;
-      const old = button.textContent;
+
       button.textContent = '✓';
-      button.title = `ذخیره شد: ${result.path || result.label}`;
+      button.title = `صفحه کامل ذخیره شد: ${result.path || result.label}`;
       setTimeout(() => {
-        button.textContent = old;
-        button.title = 'اسکرین‌شات از همین صفحه';
-      }, 1500);
+        button.textContent = '▣';
+        button.title = 'ذخیره صفحه کامل به صورت JPG یا PDF';
+      }, 1800);
     } catch (error) {
-      alert('گرفتن اسکرین‌شات انجام نشد: ' + (error?.message || error));
+      alert('ذخیره صفحه انجام نشد: ' + (error?.message || error));
+    } finally {
+      button.disabled = false;
+      if (button.textContent === '…') button.textContent = '▣';
     }
   }
 
@@ -622,7 +689,7 @@
     });
 
     const print = makePaneButton('⎙', 'چاپ این صفحه', () => printWebview(webview));
-    const screenshot = makePaneButton('▣', 'اسکرین‌شات از همین صفحه', () => captureScreenshot(webview, screenshot, site));
+    const screenshot = makePaneButton('▣', 'ذخیره صفحه کامل به صورت JPG یا PDF', () => captureScreenshot(webview, screenshot, site));
     screenshot.classList.add('screenshot-btn');
 
     const record = makePaneButton('●', 'شروع ضبط ویدیوی همین صفحه', () => toggleRecording(webview, record, site));
@@ -1035,7 +1102,7 @@
     view.setAttribute('preload', GUEST_PRELOAD_URL);
     view.setAttribute('src', appInfo.url);
     view.setAttribute('allowpopups', 'true');
-    view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
+    view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,backgroundThrottling=no');
     view.addEventListener('dom-ready', () => syncSavedCredentials(view));
     view.addEventListener('did-navigate', () => syncSavedCredentials(view));
     view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event, null));
@@ -1044,8 +1111,16 @@
     return view;
   }
 
+  function leavePrintFolderMode() {
+    socialDialog.classList.remove('folder-mode');
+    openPrintFolderSocialBtn?.classList.remove('active');
+    printFolderPanel?.classList.add('hidden');
+    socialBrowserPanel?.classList.remove('hidden');
+  }
+
   function activateSocial(key) {
     if (!socialApps[key]) return;
+    leavePrintFolderMode();
     activeSocial = key;
     socialTitle.textContent = socialApps[key].name;
 
@@ -1061,9 +1136,117 @@
     if (view) view.classList.remove('hidden');
   }
 
+  function formatFileSize(bytes) {
+    const value = Number(bytes || 0);
+    if (value < 1024) return faNumber(value) + ' B';
+    if (value < 1024 * 1024) return faNumber((value / 1024).toFixed(1)) + ' KB';
+    if (value < 1024 * 1024 * 1024) return faNumber((value / (1024 * 1024)).toFixed(1)) + ' MB';
+    return faNumber((value / (1024 * 1024 * 1024)).toFixed(1)) + ' GB';
+  }
+
+  function fileTypeLabel(item) {
+    if (item.isDirectory) return 'پوشه';
+    const ext = String(item.extension || '').replace('.', '').toUpperCase();
+    return ext ? ext + ' File' : 'File';
+  }
+
+  async function loadPrintFolder(requestedPath = '') {
+    if (!printFolderList) return;
+
+    printFolderList.replaceChildren();
+    printFolderEmpty?.classList.add('hidden');
+
+    try {
+      const data = await window.cafeDesk.listDownloadFolder(requestedPath || '');
+      currentPrintFolderPath = data.current || data.root || '';
+      printFolderPath.textContent = currentPrintFolderPath || '—';
+      printFolderPath.title = currentPrintFolderPath || '';
+      printFolderBackBtn.disabled = !data.parent;
+      printFolderBackBtn.dataset.parent = data.parent || '';
+
+      const items = Array.isArray(data.entries) ? data.entries : [];
+      printFolderEmpty?.classList.toggle('hidden', items.length > 0);
+
+      items.forEach((item) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'print-file-row';
+        row.title = item.path;
+
+        const nameCell = document.createElement('span');
+        nameCell.className = 'print-file-name';
+        const icon = document.createElement('span');
+        icon.className = 'print-file-icon';
+        icon.textContent = item.isDirectory ? '▰' : '▤';
+        const name = document.createElement('strong');
+        name.textContent = item.name;
+        nameCell.append(icon, name);
+
+        const type = document.createElement('span');
+        type.textContent = fileTypeLabel(item);
+
+        const size = document.createElement('span');
+        size.textContent = item.isDirectory ? '—' : formatFileSize(item.size);
+
+        const date = document.createElement('span');
+        date.textContent = item.mtimeMs
+          ? new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.mtimeMs))
+          : '—';
+
+        row.append(nameCell, type, size, date);
+
+        row.addEventListener('dblclick', async () => {
+          if (item.isDirectory) {
+            await loadPrintFolder(item.path);
+          } else {
+            await window.cafeDesk.openDownloadItem(item.path);
+          }
+        });
+
+        row.addEventListener('contextmenu', (event) => {
+          event.preventDefault();
+          window.cafeDesk.showFileContextMenu(item.path, item.isDirectory);
+        });
+
+        printFolderList.append(row);
+      });
+    } catch (error) {
+      printFolderEmpty?.classList.remove('hidden');
+      printFolderEmpty.textContent = 'خواندن پوشه انجام نشد: ' + (error?.message || error);
+    }
+  }
+
+  async function showPrintFolder() {
+    document.querySelectorAll('[data-social]').forEach((button) => button.classList.remove('active'));
+    openPrintFolderSocialBtn?.classList.add('active');
+    socialDialog.classList.add('folder-mode');
+    socialBrowserPanel?.classList.add('hidden');
+    printFolderPanel?.classList.remove('hidden');
+    await loadPrintFolder('');
+  }
+
+  openPrintFolderSocialBtn?.addEventListener('click', showPrintFolder);
+  refreshPrintFolderBtn?.addEventListener('click', () => loadPrintFolder(currentPrintFolderPath));
+  printFolderBackBtn?.addEventListener('click', () => {
+    const parent = printFolderBackBtn.dataset.parent || '';
+    if (parent) loadPrintFolder(parent);
+  });
+  openPrintFolderWindowsBtn?.addEventListener('click', () => window.cafeDesk.openDownloadRoot());
+
+  function prewarmSocialViews() {
+    const keys = ['rubika', 'shad', 'eitaa', 'telegram'];
+    keys.forEach((key, index) => {
+      setTimeout(() => {
+        const view = ensureSocialView(key);
+        if (view && key !== activeSocial) view.classList.add('hidden');
+      }, index * 450);
+    });
+  }
+
   openSocialBtn.addEventListener('click', () => {
     socialDialog.showModal();
     activateSocial(activeSocial);
+    prewarmSocialViews();
   });
 
   closeSocialBtn.addEventListener('click', () => socialDialog.close());
@@ -1131,6 +1314,7 @@
     try {
       const result = await window.cafeDesk.chooseDownloadFolder();
       showDownloadFolder(result);
+      if (socialDialog?.classList.contains('folder-mode')) loadPrintFolder('');
     } catch {}
   });
 
@@ -1431,6 +1615,7 @@
   setUiZoom(savedUiZoom);
   refreshDownloadFolder();
   refreshPasswordManager();
+  setTimeout(prewarmSocialViews, 1400);
 
   renderSites();
   renderPicker();

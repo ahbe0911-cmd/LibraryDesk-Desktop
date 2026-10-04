@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.6",
-  "description": "CafeDesk - Persian internet-cafe dashboard with internal browser tabs, multi-account password autofill, screenshot and tab recording, portrait social apps and configurable downloads",
+  "version": "1.0.7",
+  "description": "CafeDesk - optimized Persian internet-cafe dashboard with smooth portrait social apps, embedded print-folder explorer, full-page JPG/PDF capture, secure Eblagh autofill and internal browser tabs",
   "main": "main.js",
   "private": true,
   "scripts": {

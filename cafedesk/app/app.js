@@ -3,7 +3,7 @@
 
   const SITES_KEY = 'cafedesk.sites.v1';
   const UI_ZOOM_KEY = 'cafedesk.uiZoom.v2';
-  const SITE_ZOOM_KEY = 'cafedesk.siteZoom.v2';
+  const SITE_ZOOM_MAP_KEY = 'cafedesk.siteZoomMap.v3';
 
   const $ = (id) => document.getElementById(id);
 
@@ -12,6 +12,7 @@
   const showDashboardBtn = $('showDashboardBtn');
   const showWorkspaceBtn = $('showWorkspaceBtn');
   const openToolsBtn = $('openToolsBtn');
+  const openSocialBtn = $('openSocialBtn');
 
   const sitesGrid = $('sitesGrid');
   const sitesEmpty = $('sitesEmpty');
@@ -36,8 +37,13 @@
   const toolsDialog = $('toolsDialog');
   const closeToolsBtn = $('closeToolsBtn');
 
+  const socialDialog = $('socialDialog');
+  const closeSocialBtn = $('closeSocialBtn');
+  const reloadSocialBtn = $('reloadSocialBtn');
+  const socialTitle = $('socialTitle');
+  const socialWebviewHost = $('socialWebviewHost');
+
   const uiZoomSelect = $('uiZoomSelect');
-  const siteZoomSelect = $('siteZoomSelect');
 
   const hourHand = $('hourHand');
   const minuteHand = $('minuteHand');
@@ -66,8 +72,17 @@
   let activePane = 'right';
   let pickerTargetSide = 'right';
   let webviewCounter = 0;
-  let siteZoom = 100;
   let sites = loadSites();
+  let siteZoomMap = loadSiteZoomMap();
+  const socialViews = new Map();
+  let activeSocial = 'rubika';
+
+  const socialApps = {
+    rubika: { name: 'روبیکا', url: 'https://web.rubika.ir/' },
+    shad: { name: 'شاد', url: 'https://web.shad.ir/' },
+    eitaa: { name: 'ایتا', url: 'https://web.eitaa.com/' },
+    telegram: { name: 'تلگرام', url: 'https://web.telegram.org/k/' }
+  };
 
   const persianMonths = [
     'فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور',
@@ -89,6 +104,31 @@
 
   function saveSites() {
     localStorage.setItem(SITES_KEY, JSON.stringify(sites));
+  }
+
+  function loadSiteZoomMap() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SITE_ZOOM_MAP_KEY) || '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function siteZoomKey(site) {
+    return String(site?.id || hostLabel(site?.url || '') || 'default');
+  }
+
+  function getSiteZoom(site) {
+    const raw = Number(siteZoomMap[siteZoomKey(site)]);
+    return Number.isFinite(raw) ? Math.min(150, Math.max(60, raw)) : 100;
+  }
+
+  function saveSiteZoom(site, percent) {
+    const value = Math.min(150, Math.max(60, Number(percent) || 100));
+    siteZoomMap[siteZoomKey(site)] = value;
+    localStorage.setItem(SITE_ZOOM_MAP_KEY, JSON.stringify(siteZoomMap));
+    return value;
   }
 
   function normalizeUrl(raw) {
@@ -293,9 +333,9 @@
     return wrapper;
   }
 
-  function applySiteZoom(webview) {
+  function applySiteZoom(webview, percent) {
     if (!webview) return;
-    const factor = Math.min(1.5, Math.max(0.5, siteZoom / 100));
+    const factor = Math.min(1.5, Math.max(0.6, (Number(percent) || 100) / 100));
 
     try {
       webview.setZoomFactor(factor);
@@ -333,13 +373,37 @@
       try { webview.reload(); } catch {}
     });
 
+    const zoomWrap = document.createElement('label');
+    zoomWrap.className = 'pane-zoom';
+    zoomWrap.title = 'اندازه همین سایت';
+
+    const zoomLabel = document.createElement('span');
+    zoomLabel.textContent = 'زوم';
+
+    const zoomSelect = document.createElement('select');
+    [60,70,75,80,85,90,100,110,125,150].forEach((value) => {
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = faNumber(value) + '٪';
+      zoomSelect.append(option);
+    });
+    zoomSelect.value = String(getSiteZoom(site));
+    zoomSelect.addEventListener('click', (event) => event.stopPropagation());
+    zoomSelect.addEventListener('change', (event) => {
+      event.stopPropagation();
+      const percent = saveSiteZoom(site, zoomSelect.value);
+      zoomSelect.value = String(percent);
+      applySiteZoom(webview, percent);
+    });
+    zoomWrap.append(zoomLabel, zoomSelect);
+
     const change = makePaneButton('تغییر سایت', 'انتخاب سایت دیگر', () => openSitePicker(side));
     change.classList.add('change-site-btn');
 
     const close = makePaneButton('×', 'بستن این پنل', () => closePane(side));
     close.classList.add('close-pane-btn');
 
-    actions.append(back, forward, reload, change, close);
+    actions.append(back, forward, reload, zoomWrap, change, close);
     toolbar.append(titleWrap, actions);
 
     webview.addEventListener('did-start-loading', () => {
@@ -348,7 +412,7 @@
 
     webview.addEventListener('did-stop-loading', () => {
       title.textContent = site.name;
-      applySiteZoom(webview);
+      applySiteZoom(webview, getSiteZoom(site));
     });
 
     webview.addEventListener('did-fail-load', (event) => {
@@ -380,6 +444,7 @@
       pane.webview = null;
     }
 
+    pane.slot.onclick = null;
     pane.slot.replaceChildren();
     pane.slot.className = '';
 
@@ -397,8 +462,9 @@
     webview.setAttribute('allowpopups', 'false');
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
     webview.setAttribute('aria-label', site.name);
+    webview.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
 
-    webview.addEventListener('dom-ready', () => applySiteZoom(webview));
+    webview.addEventListener('dom-ready', () => applySiteZoom(webview, getSiteZoom(site)));
 
     frame.append(webview);
     shell.append(makeToolbar(site, side, webview), frame);
@@ -501,6 +567,56 @@
   openToolsBtn.addEventListener('click', () => toolsDialog.showModal());
   closeToolsBtn.addEventListener('click', () => toolsDialog.close());
 
+  function ensureSocialView(key) {
+    if (socialViews.has(key)) return socialViews.get(key);
+
+    const appInfo = socialApps[key];
+    if (!appInfo) return null;
+
+    const view = document.createElement('webview');
+    view.className = 'social-webview hidden';
+    view.setAttribute('partition', 'persist:cafedesk-social-' + key);
+    view.setAttribute('src', appInfo.url);
+    view.setAttribute('allowpopups', 'false');
+    view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
+    view.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    socialWebviewHost.append(view);
+    socialViews.set(key, view);
+    return view;
+  }
+
+  function activateSocial(key) {
+    if (!socialApps[key]) return;
+    activeSocial = key;
+    socialTitle.textContent = socialApps[key].name;
+
+    document.querySelectorAll('[data-social]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.social === key);
+    });
+
+    socialViews.forEach((view, viewKey) => {
+      view.classList.toggle('hidden', viewKey !== key);
+    });
+
+    const view = ensureSocialView(key);
+    if (view) view.classList.remove('hidden');
+  }
+
+  openSocialBtn.addEventListener('click', () => {
+    socialDialog.showModal();
+    activateSocial(activeSocial);
+  });
+
+  closeSocialBtn.addEventListener('click', () => socialDialog.close());
+
+  reloadSocialBtn.addEventListener('click', () => {
+    try { socialViews.get(activeSocial)?.reload(); } catch {}
+  });
+
+  document.querySelectorAll('[data-social]').forEach((button) => {
+    button.addEventListener('click', () => activateSocial(button.dataset.social));
+  });
+
   document.querySelectorAll('.pane-host').forEach((host) => {
     host.addEventListener('mousedown', () => setActivePane(host.dataset.pane));
   });
@@ -513,9 +629,9 @@
     });
   });
 
-  // UI/site zoom
+  // Main-page zoom. Website zoom is stored per site directly in each pane toolbar.
   async function setUiZoom(value) {
-    const percent = Math.min(125, Math.max(80, Number(value) || 100));
+    const percent = Math.min(125, Math.max(75, Number(value) || 100));
     localStorage.setItem(UI_ZOOM_KEY, String(percent));
     uiZoomSelect.value = String(percent);
 
@@ -524,17 +640,7 @@
     } catch {}
   }
 
-  function setSiteZoom(value) {
-    const percent = Math.min(125, Math.max(80, Number(value) || 100));
-    siteZoom = percent;
-    localStorage.setItem(SITE_ZOOM_KEY, String(percent));
-    siteZoomSelect.value = String(percent);
-
-    Object.values(panes).forEach((pane) => applySiteZoom(pane.webview));
-  }
-
   uiZoomSelect.addEventListener('change', () => setUiZoom(uiZoomSelect.value));
-  siteZoomSelect.addEventListener('change', () => setSiteZoom(siteZoomSelect.value));
 
   // Analog clock
   function updateClock() {
@@ -595,7 +701,7 @@
     }).format(now);
 
     calendarMonthTitle.textContent = persianMonths[current.month - 1] || '';
-    calendarYearTitle.textContent = faNumber(current.year);
+    calendarYearTitle.textContent = new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(current.year);
 
     const first = findPersianMonthStart(now, current);
     calendarGrid.replaceChildren();
@@ -817,9 +923,6 @@
 
   // Initial state
   const savedUiZoom = localStorage.getItem(UI_ZOOM_KEY) || '100';
-  const savedSiteZoom = localStorage.getItem(SITE_ZOOM_KEY) || '100';
-
-  setSiteZoom(savedSiteZoom);
   setUiZoom(savedUiZoom);
 
   renderSites();

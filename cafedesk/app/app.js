@@ -59,6 +59,18 @@
   const printFolderBackBtn = $('printFolderBackBtn');
   const refreshPrintFolderBtn = $('refreshPrintFolderBtn');
   const openPrintFolderWindowsBtn = $('openPrintFolderWindowsBtn');
+  const printFolderColumns = $('printFolderColumns');
+  const printViewDetailsBtn = $('printViewDetailsBtn');
+  const printViewListBtn = $('printViewListBtn');
+  const printViewIconsBtn = $('printViewIconsBtn');
+  const printSelectedCount = $('printSelectedCount');
+
+  const socialStatusOverlay = $('socialStatusOverlay');
+  const socialStatusText = $('socialStatusText');
+  const socialRetryBtn = $('socialRetryBtn');
+
+  const appToast = $('appToast');
+  const appToastText = $('appToastText');
 
   const screenshotFormatDialog = $('screenshotFormatDialog');
   const cancelScreenshotFormatBtn = $('cancelScreenshotFormatBtn');
@@ -112,6 +124,12 @@
   let tabSequence = 0;
   let activeSocial = 'rubika';
   let currentPrintFolderPath = '';
+  let printFolderItems = [];
+  const printFolderSelection = new Set();
+  let printFolderLastIndex = -1;
+  let printFolderViewMode = localStorage.getItem('cafedesk.printViewMode.v1') || 'details';
+  const socialHealth = new Map();
+  let toastTimer = null;
   let screenshotChoiceResolver = null;
 
   const socialApps = {
@@ -128,6 +146,15 @@
 
   function faNumber(value) {
     return Number(value || 0).toLocaleString('fa-IR');
+  }
+
+  function showToast(message, type = 'success') {
+    if (!appToast || !appToastText) return;
+    clearTimeout(toastTimer);
+    appToastText.textContent = String(message || '');
+    appToast.classList.toggle('error', type === 'error');
+    appToast.classList.add('show');
+    toastTimer = setTimeout(() => appToast.classList.remove('show'), 3200);
   }
 
   function loadSites() {
@@ -526,7 +553,8 @@
     try {
       const id = webview.getWebContentsId();
       button.disabled = true;
-      button.textContent = '…';
+      const originalHtml = button.innerHTML;
+      button.innerHTML = '<span class="capture-working">…</span>';
       button.title = 'در حال ذخیره صفحه کامل';
 
       const result = await window.cafeDesk.exportPageCapture(
@@ -546,7 +574,7 @@
       alert('ذخیره صفحه انجام نشد: ' + (error?.message || error));
     } finally {
       button.disabled = false;
-      if (button.textContent === '…') button.textContent = '▣';
+      if (button.querySelector('.capture-working')) button.innerHTML = originalHtml;
     }
   }
 
@@ -557,8 +585,79 @@
   function updateRecordingButton(button, webview) {
     const active = recordingStates.has(recordingKey(webview));
     button.classList.toggle('recording-active', active);
-    button.textContent = active ? '■' : '●';
+    button.innerHTML = active
+      ? '<span class="record-stop-square"></span>'
+      : TOOL_ICONS.record;
     button.title = active ? 'توقف ضبط ویدیو' : 'شروع ضبط ویدیوی همین صفحه';
+  }
+
+  async function enableRecordingCursor(webview) {
+    const script = `(() => {
+      try { window.__cafedeskRecorderCursorCleanup?.(); } catch {}
+      const cursor = document.createElement('div');
+      cursor.id = '__cafedesk_record_cursor';
+      cursor.style.cssText = [
+        'position:fixed','left:0','top:0','width:24px','height:24px',
+        'border:3px solid #18d7c2','border-radius:50%','box-sizing:border-box',
+        'transform:translate(-50%,-50%)','z-index:2147483647','pointer-events:none',
+        'box-shadow:0 0 0 3px rgba(24,215,194,.16),0 0 12px rgba(24,215,194,.5)',
+        'transition:border-color .08s,background .08s,transform .05s'
+      ].join(';');
+      document.documentElement.appendChild(cursor);
+
+      const move = (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+      };
+      const down = () => {
+        cursor.style.borderColor = '#ff4f6d';
+        cursor.style.background = 'rgba(255,79,109,.28)';
+        cursor.style.transform = 'translate(-50%,-50%) scale(.78)';
+      };
+      const up = () => {
+        cursor.style.borderColor = '#18d7c2';
+        cursor.style.background = 'transparent';
+        cursor.style.transform = 'translate(-50%,-50%) scale(1)';
+      };
+      const click = (e) => {
+        const pulse = document.createElement('div');
+        pulse.style.cssText = [
+          'position:fixed','left:' + e.clientX + 'px','top:' + e.clientY + 'px',
+          'width:12px','height:12px','border:3px solid #ffd24f','border-radius:50%',
+          'transform:translate(-50%,-50%)','z-index:2147483646','pointer-events:none',
+          'transition:width .35s,height .35s,opacity .35s','opacity:1'
+        ].join(';');
+        document.documentElement.appendChild(pulse);
+        requestAnimationFrame(() => {
+          pulse.style.width = '48px';
+          pulse.style.height = '48px';
+          pulse.style.opacity = '0';
+        });
+        setTimeout(() => pulse.remove(), 420);
+      };
+
+      document.addEventListener('mousemove', move, true);
+      document.addEventListener('mousedown', down, true);
+      document.addEventListener('mouseup', up, true);
+      document.addEventListener('click', click, true);
+
+      window.__cafedeskRecorderCursorCleanup = () => {
+        document.removeEventListener('mousemove', move, true);
+        document.removeEventListener('mousedown', down, true);
+        document.removeEventListener('mouseup', up, true);
+        document.removeEventListener('click', click, true);
+        cursor.remove();
+        delete window.__cafedeskRecorderCursorCleanup;
+      };
+      return true;
+    })()`;
+    try { await webview.executeJavaScript(script, true); } catch {}
+  }
+
+  async function disableRecordingCursor(webview) {
+    try {
+      await webview.executeJavaScript('window.__cafedeskRecorderCursorCleanup?.(); true', true);
+    } catch {}
   }
 
   async function stopRecordingForWebview(webview) {
@@ -572,6 +671,7 @@
         state.recorder.stop();
       } catch {
         try { state.stream.getTracks().forEach((track) => track.stop()); } catch {}
+        disableRecordingCursor(webview);
         recordingStates.delete(key);
         resolve(null);
       }
@@ -598,7 +698,7 @@
           mandatory: {
             chromeMediaSource: 'tab',
             chromeMediaSourceId: sourceId,
-            maxFrameRate: 30
+            maxFrameRate: 60
           }
         }
       });
@@ -611,10 +711,11 @@
 
       fileInfo = await window.cafeDesk.startRecordingFile(site?.name || hostLabel(webview.getURL()) || 'CafeDesk');
       if (!fileInfo?.ok) throw new Error('فایل ضبط ساخته نشد.');
+      await enableRecordingCursor(webview);
 
       const recorder = new MediaRecorder(
         stream,
-        mimeType ? { mimeType, videoBitsPerSecond: 4500000 } : { videoBitsPerSecond: 4500000 }
+        mimeType ? { mimeType, videoBitsPerSecond: 10000000 } : { videoBitsPerSecond: 10000000 }
       );
 
       const state = {
@@ -640,7 +741,9 @@
           await window.cafeDesk.finishRecordingFile(state.sessionId);
         } catch {}
         try { stream.getTracks().forEach((track) => track.stop()); } catch {}
+        await disableRecordingCursor(webview);
         recordingStates.delete(key);
+        showToast('ویدیو ذخیره شد: ' + (fileInfo?.label || 'فایل ضبط'), 'success');
         state.resolveStop?.(fileInfo);
       });
 
@@ -648,6 +751,7 @@
       updateRecordingButton(button, webview);
     } catch (error) {
       try { stream?.getTracks().forEach((track) => track.stop()); } catch {}
+      await disableRecordingCursor(webview);
       if (fileInfo?.sessionId) {
         try { await window.cafeDesk.abortRecordingFile(fileInfo.sessionId); } catch {}
       }
@@ -655,6 +759,19 @@
       updateRecordingButton(button, webview);
       alert('ضبط صفحه شروع نشد: ' + (error?.message || error));
     }
+  }
+
+  const TOOL_ICONS = {
+    print: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="18" cy="11" r="1" fill="currentColor"/></svg>',
+    screenshot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3M16 5h3v3M8 19H5v-3M16 19h3v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="8" y="8" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+    record: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 10 5-3v10l-5-3z" fill="currentColor"/></svg>'
+  };
+
+  function makePaneIconButton(kind, title, onClick) {
+    const button = makePaneButton('', title, onClick);
+    button.classList.add('pane-icon-btn', kind + '-icon-btn');
+    button.innerHTML = TOOL_ICONS[kind] || '';
+    return button;
   }
 
   function makeToolbar(site, side, webview) {
@@ -688,11 +805,11 @@
       try { webview.reload(); } catch {}
     });
 
-    const print = makePaneButton('⎙', 'چاپ این صفحه', () => printWebview(webview));
-    const screenshot = makePaneButton('▣', 'ذخیره صفحه کامل به صورت JPG یا PDF', () => captureScreenshot(webview, screenshot, site));
+    const print = makePaneIconButton('print', 'چاپ این صفحه', () => printWebview(webview));
+    const screenshot = makePaneIconButton('screenshot', 'ذخیره صفحه کامل به صورت JPG یا PDF', () => captureScreenshot(webview, screenshot, site));
     screenshot.classList.add('screenshot-btn');
 
-    const record = makePaneButton('●', 'شروع ضبط ویدیوی همین صفحه', () => toggleRecording(webview, record, site));
+    const record = makePaneIconButton('record', 'شروع ضبط ویدیوی همین صفحه', () => toggleRecording(webview, record, site));
     record.classList.add('record-btn');
     setTimeout(() => updateRecordingButton(record, webview), 0);
 

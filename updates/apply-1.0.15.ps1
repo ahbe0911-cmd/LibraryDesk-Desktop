@@ -39,14 +39,13 @@ $newState = "const code=cleanNationalId(input.value);if(input.value!==code)input
 if (-not $appjs.Contains($oldState)) { throw "National ID state anchor not found" }
 $appjs = $appjs.Replace($oldState, $newState)
 
-# Save the generated color from the national ID, rather than one shared default.
-$oldAdd = "nationalId=cleanNationalId($('#loanNationalId')?.value),color=$('#loanColor')?.value||LOAN_DELAY_COLORS[0];"
-$newAdd = "nationalId=cleanNationalId($('#loanNationalId')?.value),color=loanColorForNationalId(nationalId);"
-if (-not $appjs.Contains($oldAdd)) { throw "Loan add color anchor not found" }
-$appjs = $appjs.Replace($oldAdd, $newAdd)
+# Save a deterministic color derived from the national ID.
+$itemPattern = 'items\.unshift\(\{id:uid\(\),name,father,nationalId,color,createdAt:Date\.now\(\)\}\)'
+if (-not [regex]::IsMatch($appjs,$itemPattern)) { throw "Loan item save anchor not found" }
+$appjs = [regex]::Replace($appjs,$itemPattern,'items.unshift({id:uid(),name,father,nationalId,color:loanColorForNationalId(nationalId),createdAt:Date.now()})',1)
 
 # No need to reset a hidden/manual color after save.
-$appjs = $appjs.Replace("if($('#loanColor'))$('#loanColor').value=LOAN_DELAY_COLORS[0];", "")
+$appjs = [regex]::Replace($appjs,'if\(\$\(''#loanColor''\)\)\$\(''#loanColor''\)\.value=LOAN_DELAY_COLORS\[0\];','')
 WriteUtf8 $appPath $appjs
 
 # ---- Remove the manual color picker from the add form; color is automatic ----

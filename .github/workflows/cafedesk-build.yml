@@ -25,20 +25,58 @@ jobs:
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf" -OutFile "cafedesk\app\fonts\Vazirmatn-Regular.ttf"
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/OFL.txt" -OutFile "cafedesk\app\fonts\Vazirmatn-OFL.txt"
 
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/mohammadhasananisi/personal_accountant/26f09ce3e414f5d6293f47296ab0dfd9af283d7e/assets/fonts/Far_Nazanin.ttf" -OutFile "cafedesk\app\fonts\Far_Nazanin.ttf"
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/negin-amiri/my-dijikala-clone/a4eead8038bb56a38bc01ec8836b0b169415ebae/fonts/titr/Far_TitrBd.ttf" -OutFile "cafedesk\app\fonts\Far_TitrBd.ttf"
+          $expectedNaz = "f9abfdc13d9e7f72b2cf4cf7efc8d2cd578ddd1ac0ac6d971e2d8a133566e176"
+          $nazCandidates = @(
+            "https://raw.githubusercontent.com/mohammadhasananisi/personal_accountant/26f09ce3e414f5d6293f47296ab0dfd9af283d7e/assets/fonts/Far_Nazanin.ttf",
+            "https://raw.githubusercontent.com/Soutehkeshan/Transaction-Journal/357bd53b2a923281750a6681c9aa8668faa1c7a6/resources/fonts/Far_Nazanin.ttf",
+            "https://raw.githubusercontent.com/pishnahadebehtar/Sport_News_Website/8fd3bb4a913670c52db3b047e1e6f7d3927c2d24/public/font/Far_Nazanin.ttf"
+          )
 
-          $nazHash = (Get-FileHash "cafedesk\app\fonts\Far_Nazanin.ttf" -Algorithm SHA256).Hash.ToLower()
-          $titrHash = (Get-FileHash "cafedesk\app\fonts\Far_TitrBd.ttf" -Algorithm SHA256).Hash.ToLower()
-
-          if ($nazHash -ne "f9abfdc13d9e7f72b2cf4cf7efc8d2cd578ddd1ac0ac6d971e2d8a133566e176") {
-            throw "Far_Nazanin does not match the user-provided font"
+          $nazFound = $false
+          foreach ($url in $nazCandidates) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile "naz.tmp" -ErrorAction Stop
+              $hash = (Get-FileHash "naz.tmp" -Algorithm SHA256).Hash.ToLower()
+              Write-Host "Nazanin candidate:" $url $hash
+              if ($hash -eq $expectedNaz) {
+                Move-Item "naz.tmp" "cafedesk\app\fonts\Far_Nazanin.ttf" -Force
+                $nazFound = $true
+                break
+              }
+              Remove-Item "naz.tmp" -Force -ErrorAction SilentlyContinue
+            } catch {
+              Write-Host "Nazanin candidate failed:" $url
+            }
           }
-          if ($titrHash -ne "be7aab09aec062c744235625ffc821e0964a4d12353ba11e5cfe0314a0f35ec4") {
-            throw "Far_TitrBd does not match the user-provided font"
-          }
+          if (!$nazFound) { throw "Exact user Far_Nazanin font was not found in verified mirrors" }
 
-          Write-Host "Vazirmatn + exact user Far_Nazanin + exact user Far_TitrBd prepared"
+          $expectedTitr = "be7aab09aec062c744235625ffc821e0964a4d12353ba11e5cfe0314a0f35ec4"
+          $titrCandidates = @(
+            "https://raw.githubusercontent.com/negin-amiri/my-dijikala-clone/a4eead8038bb56a38bc01ec8836b0b169415ebae/fonts/titr/Far_TitrBd.ttf",
+            "https://raw.githubusercontent.com/fahimahmadi/ak_hospital_front/4d25d3712a000c61c5c5d7181d758cbfaa0272f0/src/assets/fonts/Far_TitrBd.ttf",
+            "https://raw.githubusercontent.com/nadi1368/hesabro-helpers/abde6259495221f13f9daada7cbfc2921e68ce74/src/assets/css/fonts/Far_TitrBd.ttf",
+            "https://raw.githubusercontent.com/nadi1368/hris/c6a52b7ff837281639e9d5d70a468ef50cc791d7/src/assets/fonts/bundle/fonts/Far_TitrBd.ttf"
+          )
+
+          $titrFound = $false
+          foreach ($url in $titrCandidates) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile "titr.tmp" -ErrorAction Stop
+              $hash = (Get-FileHash "titr.tmp" -Algorithm SHA256).Hash.ToLower()
+              Write-Host "Titr candidate:" $url $hash
+              if ($hash -eq $expectedTitr) {
+                Move-Item "titr.tmp" "cafedesk\app\fonts\Far_TitrBd.ttf" -Force
+                $titrFound = $true
+                break
+              }
+              Remove-Item "titr.tmp" -Force -ErrorAction SilentlyContinue
+            } catch {
+              Write-Host "Titr candidate failed:" $url
+            }
+          }
+          if (!$titrFound) { throw "Exact user Far_TitrBd font was not found in verified mirrors" }
+
+          Write-Host "Vazirmatn + exact uploaded Nazanin + exact uploaded Titr are ready"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

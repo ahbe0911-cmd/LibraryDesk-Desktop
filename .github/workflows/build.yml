@@ -68,7 +68,10 @@ jobs:
       - name: Apply clean 1.0.16 dashboard update
         shell: pwsh
         run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.16.patch.gz.b64" -Raw))
+          $parts = Get-ChildItem "updates\1.0.16\part-*.txt" | Sort-Object Name
+          if (!$parts) { throw "1.0.16 patch chunks not found" }
+          $patch64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ""
+          $payload = [Convert]::FromBase64String($patch64)
           $input = New-Object IO.MemoryStream(,$payload)
           $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
           $output = [IO.File]::Create("update-1.0.16.patch")

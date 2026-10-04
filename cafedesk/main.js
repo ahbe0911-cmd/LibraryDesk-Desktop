@@ -1,11 +1,14 @@
-const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu, dialog, webContents } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 app.setName('CafeDesk');
 
 const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+const MOBILE_UA = `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Mobile Safari/537.36`;
 const configuredPartitions = new Set();
+const activeRecordings = new Map();
 
 function clampZoom(percent) {
   const value = Number(percent);
@@ -30,13 +33,13 @@ function originKey(rawUrl) {
 function readCredentialStore() {
   try {
     const file = credentialFile();
-    if (!fs.existsSync(file)) return { version: 1, entries: {} };
+    if (!fs.existsSync(file)) return { version: 2, entries: {} };
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return parsed && typeof parsed === 'object' && parsed.entries
-      ? parsed
-      : { version: 1, entries: {} };
+    if (!parsed || typeof parsed !== 'object') return { version: 2, entries: {} };
+    if (!parsed.entries || typeof parsed.entries !== 'object') parsed.entries = {};
+    return parsed;
   } catch {
-    return { version: 1, entries: {} };
+    return { version: 2, entries: {} };
   }
 }
 
@@ -44,20 +47,15 @@ function writeCredentialStore(store) {
   const file = credentialFile();
   const tmp = file + '.tmp';
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  store.version = 2;
   fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8');
   fs.renameSync(tmp, file);
 }
 
-function getCredential(rawUrl) {
-  const key = originKey(rawUrl);
-  if (!key || !safeStorage.isEncryptionAvailable()) return null;
-
-  const entry = readCredentialStore().entries[key];
-  if (!entry?.username || !entry?.password) return null;
-
+function decryptStoredAccount(entry) {
+  if (!entry?.username || !entry?.password || !safeStorage.isEncryptionAvailable()) return null;
   try {
     return {
-      origin: key,
       username: safeStorage.decryptString(Buffer.from(entry.username, 'base64')),
       password: safeStorage.decryptString(Buffer.from(entry.password, 'base64')),
       updatedAt: Number(entry.updatedAt || 0)
@@ -67,9 +65,28 @@ function getCredential(rawUrl) {
   }
 }
 
+function encryptedAccountsForOrigin(store, key) {
+  const raw = store.entries[key];
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (raw.username && raw.password) return [raw];
+  return [];
+}
+
+function getCredentials(rawUrl) {
+  const key = originKey(rawUrl);
+  if (!key || !safeStorage.isEncryptionAvailable()) return [];
+  const store = readCredentialStore();
+  return encryptedAccountsForOrigin(store, key)
+    .map(decryptStoredAccount)
+    .filter(Boolean)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map((entry) => ({ ...entry, origin: key }));
+}
+
 function saveCredential(payload) {
   const key = originKey(payload?.url);
-  const username = String(payload?.username || '').slice(0, 512);
+  const username = String(payload?.username || '').trim().slice(0, 512);
   const password = String(payload?.password || '').slice(0, 4096);
 
   if (!key || !password) return { ok: false, message: 'اطلاعات ورود کامل نیست.' };
@@ -77,16 +94,52 @@ function saveCredential(payload) {
     return { ok: false, message: 'رمزگذاری امن ویندوز در دسترس نیست؛ رمز ذخیره نشد.' };
   }
 
+  const existing = getCredentials(key);
+  const normalizedUser = username.toLocaleLowerCase();
+  const next = existing.filter((item) => String(item.username || '').toLocaleLowerCase() !== normalizedUser);
+  next.unshift({ username, password, updatedAt: Date.now() });
+
   const store = readCredentialStore();
-  store.entries[key] = {
-    username: safeStorage.encryptString(username).toString('base64'),
-    password: safeStorage.encryptString(password).toString('base64'),
-    updatedAt: Date.now()
-  };
+  store.entries[key] = next.slice(0, 25).map((item) => ({
+    username: safeStorage.encryptString(String(item.username || '')).toString('base64'),
+    password: safeStorage.encryptString(String(item.password || '')).toString('base64'),
+    updatedAt: Number(item.updatedAt || Date.now())
+  }));
   writeCredentialStore(store);
-  return { ok: true, origin: key };
+  return { ok: true, origin: key, username };
 }
 
+function listCredentials() {
+  if (!safeStorage.isEncryptionAvailable()) return [];
+  const store = readCredentialStore();
+  const out = [];
+  for (const [origin, entries] of Object.entries(store.entries || {})) {
+    for (const encrypted of (Array.isArray(entries) ? entries : [entries])) {
+      const account = decryptStoredAccount(encrypted);
+      if (!account) continue;
+      out.push({ origin, username: account.username, updatedAt: account.updatedAt });
+    }
+  }
+  return out.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function deleteCredential(payload) {
+  const key = originKey(payload?.origin || payload?.url);
+  const username = String(payload?.username || '');
+  if (!key) return { ok: false };
+
+  const store = readCredentialStore();
+  const remaining = encryptedAccountsForOrigin(store, key).filter((encrypted) => {
+    const account = decryptStoredAccount(encrypted);
+    return account && account.username !== username;
+  });
+
+  if (remaining.length) store.entries[key] = remaining;
+  else delete store.entries[key];
+
+  writeCredentialStore(store);
+  return { ok: true };
+}
 
 function appSettingsFile() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -163,6 +216,28 @@ async function chooseDownloadFolder(ownerWindow) {
   return { ok: true, canceled: false, ...downloadFolderInfo() };
 }
 
+function getGuestForHost(event, webContentsId) {
+  const guest = webContents.fromId(Number(webContentsId));
+  if (!guest || guest.isDestroyed()) throw new Error('صفحه مرورگر در دسترس نیست.');
+  if (guest.hostWebContents !== event.sender) throw new Error('دسترسی به این صفحه مجاز نیست.');
+  return guest;
+}
+
+function timestampForFile() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
+function cleanFileStem(value, fallback = 'CafeDesk') {
+  const cleaned = String(value || fallback)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+  return cleaned || fallback;
+}
+
 function configureGuestSession(ses) {
   let partition = '';
   try { partition = ses.getPartition() || 'default'; } catch { partition = 'default'; }
@@ -211,25 +286,25 @@ function showGuestContextMenu(contents, params) {
 }
 
 function configureGuestContents(contents) {
-  contents.setUserAgent(DESKTOP_UA);
+  let partition = '';
+  try { partition = contents.session.getPartition() || ''; } catch {}
+  contents.setUserAgent(partition.startsWith('persist:cafedesk-social-') ? MOBILE_UA : DESKTOP_UA);
   configureGuestSession(contents.session);
 
-  contents.setWindowOpenHandler(({ url }) => {
+  contents.setWindowOpenHandler((details) => {
+    const url = String(details?.url || '');
     if (/^https?:/i.test(url)) {
-      return {
-        action: 'allow',
-        overrideBrowserWindowOptions: {
-          autoHideMenuBar: true,
-          backgroundColor: '#ffffff',
-          webPreferences: {
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true
-          }
-        }
-      };
+      const host = contents.hostWebContents;
+      if (host && !host.isDestroyed()) {
+        host.send('cafedesk:guest-open-tab', {
+          sourceId: contents.id,
+          url,
+          disposition: details.disposition || 'new-window',
+          referrer: details.referrer?.url || ''
+        });
+      }
+      return { action: 'deny' };
     }
-
     if (/^(mailto|tel):/i.test(url)) shell.openExternal(url).catch(() => {});
     return { action: 'deny' };
   });
@@ -297,10 +372,68 @@ app.whenReady().then(() => {
     return { ok: !result, message: result || '', ...downloadFolderInfo() };
   });
 
-  ipcMain.handle('credentials:get', (_event, url) => getCredential(url));
+  ipcMain.handle('credentials:get', (_event, url) => getCredentials(url));
   ipcMain.handle('credentials:save', (_event, payload) => saveCredential(payload));
+  ipcMain.handle('credentials:list', () => listCredentials());
+  ipcMain.handle('credentials:delete', (_event, payload) => deleteCredential(payload));
 
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  ipcMain.handle('capture:screenshot', async (event, webContentsId, label) => {
+    const guest = getGuestForHost(event, webContentsId);
+    const image = await guest.capturePage();
+    const target = nextAvailableDownloadPath(
+      getDownloadFolder(),
+      `${cleanFileStem(label, 'CafeDesk-Screenshot')}-${timestampForFile()}.png`
+    );
+    fs.writeFileSync(target, image.toPNG());
+    return { ok: true, path: target, label: path.basename(target) };
+  });
+
+  ipcMain.handle('capture:get-media-source-id', (event, webContentsId) => {
+    const guest = getGuestForHost(event, webContentsId);
+    return guest.getMediaSourceId(event.sender);
+  });
+
+  ipcMain.handle('capture:recording-start', (event, label) => {
+    const sessionId = crypto.randomUUID();
+    const target = nextAvailableDownloadPath(
+      getDownloadFolder(),
+      `${cleanFileStem(label, 'CafeDesk-Recording')}-${timestampForFile()}.webm`
+    );
+    fs.writeFileSync(target, Buffer.alloc(0));
+    activeRecordings.set(sessionId, { ownerId: event.sender.id, path: target });
+    return { ok: true, sessionId, path: target, label: path.basename(target) };
+  });
+
+  ipcMain.handle('capture:recording-chunk', (event, sessionId, chunk) => {
+    const recording = activeRecordings.get(String(sessionId || ''));
+    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
+    fs.appendFileSync(recording.path, Buffer.from(chunk));
+    return { ok: true };
+  });
+
+  ipcMain.handle('capture:recording-finish', (event, sessionId) => {
+    const key = String(sessionId || '');
+    const recording = activeRecordings.get(key);
+    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
+    activeRecordings.delete(key);
+    return { ok: true, path: recording.path, label: path.basename(recording.path) };
+  });
+
+  ipcMain.handle('capture:recording-abort', (event, sessionId) => {
+    const key = String(sessionId || '');
+    const recording = activeRecordings.get(key);
+    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
+    activeRecordings.delete(key);
+    try {
+      if (fs.existsSync(recording.path) && fs.statSync(recording.path).size === 0) fs.unlinkSync(recording.path);
+    } catch {}
+    return { ok: true };
+  });
+
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+    const isLocalCafeDesk = String(wc?.getURL?.() || '').startsWith('file://');
+    callback(permission === 'media' && isLocalCafeDesk);
+  });
 
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() !== 'webview') return;

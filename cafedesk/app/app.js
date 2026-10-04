@@ -3,7 +3,9 @@
 
   const SITES_KEY = 'cafedesk.sites.v1';
   const UI_ZOOM_KEY = 'cafedesk.uiZoom.v2';
-  const SITE_ZOOM_MAP_KEY = 'cafedesk.siteZoomMap.v3';
+  const SITE_ZOOM_MAP_KEY = 'cafedesk.siteZoomMap.v4';
+  const GUEST_PRELOAD_URL = new URL('../webview-preload.js', window.location.href).toString();
+  const WEBVIEW_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 
   const $ = (id) => document.getElementById(id);
 
@@ -71,7 +73,6 @@
 
   let activePane = 'right';
   let pickerTargetSide = 'right';
-  let webviewCounter = 0;
   let sites = loadSites();
   let siteZoomMap = loadSiteZoomMap();
   const socialViews = new Map();
@@ -116,7 +117,8 @@
   }
 
   function siteZoomKey(site) {
-    return String(site?.id || hostLabel(site?.url || '') || 'default');
+    const host = hostLabel(site?.url || '').toLocaleLowerCase('en-US');
+    return host || String(site?.id || 'default');
   }
 
   function getSiteZoom(site) {
@@ -342,6 +344,98 @@
     } catch {}
   }
 
+
+  async function printWebview(webview) {
+    if (!webview) return;
+    try {
+      const result = webview.print({ silent: false, printBackground: true });
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch {}
+  }
+
+  async function fillSavedCredential(webview) {
+    if (!webview || !window.cafeDesk?.getCredential) return;
+
+    let url = '';
+    try { url = webview.getURL() || webview.getAttribute('src') || ''; } catch {}
+    if (!/^https?:/i.test(url)) return;
+
+    let credential = null;
+    try { credential = await window.cafeDesk.getCredential(url); } catch {}
+    if (!credential?.password) return;
+
+    const script = `(() => {
+      const username = ${JSON.stringify(credential.username || '')};
+      const password = ${JSON.stringify(credential.password || '')};
+      const inputs = Array.from(document.querySelectorAll('input:not([disabled])'));
+      const passwordInput = inputs.find((el) => String(el.type || '').toLowerCase() === 'password');
+      if (!passwordInput) return false;
+
+      const usernameHint = /user|login|email|mail|phone|mobile|national|melli|identity|شناسه|کاربر|موبایل|همراه|ملی/i;
+      const usernameInput = inputs.find((el) => {
+        if (el === passwordInput) return false;
+        const type = String(el.type || 'text').toLowerCase();
+        if (!['text','email','tel','number'].includes(type)) return false;
+        const hint = [el.name, el.id, el.autocomplete, el.placeholder, el.getAttribute('aria-label')].filter(Boolean).join(' ');
+        return usernameHint.test(hint);
+      }) || inputs.slice(0, Math.max(0, inputs.indexOf(passwordInput))).reverse().find((el) => {
+        const type = String(el.type || 'text').toLowerCase();
+        return ['text','email','tel','number'].includes(type) && el !== passwordInput;
+      });
+
+      const setValue = (el, value) => {
+        if (!el || !value) return;
+        const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (descriptor?.set) descriptor.set.call(el, value);
+        else el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      if (usernameInput && username && !usernameInput.value) setValue(usernameInput, username);
+      if (!passwordInput.value) setValue(passwordInput, password);
+      return true;
+    })()`;
+
+    try { await webview.executeJavaScript(script, true); } catch {}
+  }
+
+  async function handleWebviewMessage(webview, event) {
+    if (!event) return;
+
+    if (event.channel === 'print-request') {
+      await printWebview(webview);
+      return;
+    }
+
+    if (event.channel !== 'credential-submitted') return;
+
+    const data = event.args?.[0] || {};
+    const password = String(data.password || '');
+    const username = String(data.username || '');
+    let url = String(data.url || '');
+
+    try { if (!url) url = webview.getURL() || ''; } catch {}
+    if (!/^https?:/i.test(url) || !password) return;
+
+    let existing = null;
+    try { existing = await window.cafeDesk.getCredential(url); } catch {}
+    if (existing && existing.username === username && existing.password === password) return;
+
+    const host = hostLabel(url) || 'این سایت';
+    const identityLine = username ? `\nنام کاربری / کد: ${username}` : '';
+    const accepted = confirm(
+      `اطلاعات ورود «${host}» ذخیره شود؟${identityLine}\n\nرمز به‌صورت رمزگذاری‌شده و محافظت‌شده توسط ویندوز ذخیره می‌شود.`
+    );
+    if (!accepted) return;
+
+    try {
+      const result = await window.cafeDesk.saveCredential({ url, username, password });
+      if (!result?.ok && result?.message) alert(result.message);
+    } catch {}
+  }
+
   function makeToolbar(site, side, webview) {
     const toolbar = document.createElement('div');
     toolbar.className = 'pane-toolbar';
@@ -371,6 +465,11 @@
 
     const reload = makePaneButton('↻', 'بارگذاری مجدد', () => {
       try { webview.reload(); } catch {}
+    });
+
+    const print = makePaneButton('⎙', 'چاپ این صفحه', () => printWebview(webview));
+    const downloads = makePaneButton('⬇', 'پوشه دانلودها', () => {
+      try { window.cafeDesk.openDownloads(); } catch {}
     });
 
     const zoomWrap = document.createElement('label');
@@ -403,7 +502,7 @@
     const close = makePaneButton('×', 'بستن این پنل', () => closePane(side));
     close.classList.add('close-pane-btn');
 
-    actions.append(back, forward, reload, zoomWrap, change, close);
+    actions.append(back, forward, reload, print, downloads, zoomWrap, change, close);
     toolbar.append(titleWrap, actions);
 
     webview.addEventListener('did-start-loading', () => {
@@ -455,16 +554,23 @@
     frame.className = 'webview-frame';
 
     const webview = document.createElement('webview');
-    const partition = `cafedesk-isolated-${side}-${Date.now()}-${++webviewCounter}`;
+    const partition = `persist:cafedesk-pane-${side}`;
 
     webview.setAttribute('partition', partition);
+    webview.setAttribute('preload', GUEST_PRELOAD_URL);
     webview.setAttribute('src', site.url);
-    webview.setAttribute('allowpopups', 'false');
+    webview.setAttribute('allowpopups', 'true');
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
     webview.setAttribute('aria-label', site.name);
-    webview.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    webview.setAttribute('useragent', WEBVIEW_UA);
 
-    webview.addEventListener('dom-ready', () => applySiteZoom(webview, getSiteZoom(site)));
+    webview.addEventListener('dom-ready', () => {
+      applySiteZoom(webview, getSiteZoom(site));
+      fillSavedCredential(webview);
+    });
+    webview.addEventListener('did-navigate', () => fillSavedCredential(webview));
+    webview.addEventListener('did-navigate-in-page', () => fillSavedCredential(webview));
+    webview.addEventListener('ipc-message', (event) => handleWebviewMessage(webview, event));
 
     frame.append(webview);
     shell.append(makeToolbar(site, side, webview), frame);
@@ -576,10 +682,14 @@
     const view = document.createElement('webview');
     view.className = 'social-webview hidden';
     view.setAttribute('partition', 'persist:cafedesk-social-' + key);
+    view.setAttribute('preload', GUEST_PRELOAD_URL);
     view.setAttribute('src', appInfo.url);
-    view.setAttribute('allowpopups', 'false');
+    view.setAttribute('allowpopups', 'true');
     view.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
-    view.setAttribute('useragent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36');
+    view.setAttribute('useragent', WEBVIEW_UA);
+    view.addEventListener('dom-ready', () => fillSavedCredential(view));
+    view.addEventListener('did-navigate', () => fillSavedCredential(view));
+    view.addEventListener('ipc-message', (event) => handleWebviewMessage(view, event));
     socialWebviewHost.append(view);
     socialViews.set(key, view);
     return view;
@@ -627,6 +737,14 @@
       setActivePane(side);
       openSitePicker(side);
     });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || String(event.key).toLowerCase() !== 'p') return;
+    const current = panes[activePane]?.webview;
+    if (!current) return;
+    event.preventDefault();
+    printWebview(current);
   });
 
   // Main-page zoom. Website zoom is stored per site directly in each pane toolbar.

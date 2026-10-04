@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.3",
-  "description": "CafeDesk - compact Persian internet-cafe dashboard with Jalali calendar, independent browser panes, per-site saved zoom, social web apps, and quick tools",
+  "version": "1.0.4",
+  "description": "CafeDesk - Persian internet-cafe dashboard with isolated persistent browser panes, per-site zoom, secure saved logins, downloads, printing, social web apps, and quick tools",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -22,6 +22,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "webview-preload.js",
       "app/**/*",
       "package.json"
     ],

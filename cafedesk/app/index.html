@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.5</span>
+      <span class="version" id="versionText">v1.0.6</span>
     </div>
   </header>
 
@@ -250,10 +250,38 @@
           <button id="generatePasswordBtn" class="password-generate-btn" type="button">ساخت رمز جدید</button>
           <div id="copyStatus" class="status-line"></div>
         </article>
+
+        <article class="tool credentials-tool">
+          <div class="tool-title">
+            <span class="tool-dot cyan"></span>
+            <div>
+              <strong>رمزها و تکمیل خودکار</strong>
+              <small>ذخیره امن حساب‌ها مثل Password Manager مرورگر</small>
+            </div>
+          </div>
+          <p>رمزها بر اساس سایت و نام کاربری یا شماره ملی نگهداری می‌شوند و برای همان حساب تکمیل می‌شوند.</p>
+          <button id="openPasswordManagerBtn" class="password-manager-open" type="button">
+            مدیریت رمزهای ذخیره‌شده
+            <span id="savedPasswordCount">۰</span>
+          </button>
+        </article>
       </div>
     </div>
   </dialog>
 
+  <dialog id="passwordManagerDialog" class="site-dialog password-manager-dialog">
+    <div class="dialog-card password-manager-card">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">Password Manager</div>
+          <h3>رمزها و تکمیل خودکار</h3>
+        </div>
+        <button id="closePasswordManagerBtn" class="dialog-close" type="button">×</button>
+      </div>
+      <p class="password-manager-note">برای هر سایت می‌توان چند حساب ذخیره کرد. رمزها به‌صورت رمزگذاری‌شده در حساب ویندوز نگهداری می‌شوند.</p>
+      <div id="passwordManagerList" class="password-manager-list"></div>
+    </div>
+  </dialog>
 
   <dialog id="socialDialog" class="site-dialog social-dialog">
     <div class="dialog-card social-dialog-card">

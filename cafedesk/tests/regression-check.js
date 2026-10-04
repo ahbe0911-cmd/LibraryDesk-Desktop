@@ -55,3 +55,21 @@ assert(css.includes('max-width:430px'), 'social browser portrait width missing')
 assert(main.includes("persist:cafedesk-social-") && main.includes('MOBILE_UA'), 'social mobile user-agent switching missing');
 
 console.log('CafeDesk 1.0.6 extended regression checks passed.');
+
+
+assert(main.includes("Page.captureScreenshot"), 'full-page JPG capture via Chromium DevTools missing');
+assert(main.includes("captureBeyondViewport: true"), 'long-page capture must go beyond the viewport');
+assert(main.includes("guest.printToPDF"), 'PDF page capture missing');
+assert(main.includes("files:list-download-folder"), 'embedded print-folder listing IPC missing');
+assert(main.includes("files:context-menu"), 'native right-click menu for print-folder items missing');
+assert(app.includes("loadPrintFolder"), 'embedded print-folder renderer missing');
+assert(app.includes("prewarmSocialViews"), 'social prewarming missing');
+assert(css.includes(".social-webview.hidden") && css.includes("visibility:hidden"), 'social views must stay mounted for smooth switching');
+assert(guestPreload.includes("EBLAGH_CANONICAL_URL"), 'Eblagh canonical credential scope missing');
+assert(guestPreload.includes("isEblaghLoginPage"), 'Eblagh page detection missing');
+assert(guestPreload.includes("MutationObserver"), 'dynamic login form autofill observer missing');
+assert(html.includes('id="openPrintFolderSocialBtn"'), 'print folder button missing below social apps');
+assert(html.includes('id="screenshotFormatDialog"'), 'JPG/PDF screenshot chooser missing');
+assert(css.includes("justify-content:flex-start") && css.includes(".topbar"), 'topbar controls must sit beside CafeDesk on the right');
+
+console.log('CafeDesk 1.0.7 optimization checks passed.');

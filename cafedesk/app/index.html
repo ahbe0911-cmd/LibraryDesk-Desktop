@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.6</span>
+      <span class="version" id="versionText">v1.0.7</span>
     </div>
   </header>
 
@@ -311,9 +311,13 @@
             <span class="social-badge telegram">ت</span>
             <span><strong>تلگرام</strong><small>Telegram Web</small></span>
           </button>
+          <button id="openPrintFolderSocialBtn" class="social-nav-btn print-folder-nav" type="button">
+            <span class="social-badge print-folder">چ</span>
+            <span><strong>چاپ</strong><small>پوشه پیش‌فرض فایل‌ها</small></span>
+          </button>
         </nav>
 
-        <section class="social-browser">
+        <section id="socialBrowserPanel" class="social-browser">
           <div class="social-browser-bar">
             <div>
               <span class="social-live-dot"></span>
@@ -323,6 +327,49 @@
           </div>
           <div id="socialWebviewHost" class="social-webview-host"></div>
         </section>
+
+        <section id="printFolderPanel" class="print-folder-panel hidden">
+          <div class="print-folder-bar">
+            <div class="print-folder-title">
+              <span class="social-badge print-folder small">چ</span>
+              <div>
+                <strong>پوشه چاپ</strong>
+                <small id="printFolderPath">—</small>
+              </div>
+            </div>
+            <div class="print-folder-actions">
+              <button id="printFolderBackBtn" type="button" title="پوشه قبلی">↑</button>
+              <button id="refreshPrintFolderBtn" type="button">↻ تازه‌سازی</button>
+              <button id="openPrintFolderWindowsBtn" type="button">باز کردن در ویندوز</button>
+            </div>
+          </div>
+          <div class="print-folder-columns">
+            <span>نام</span><span>نوع</span><span>حجم</span><span>تاریخ تغییر</span>
+          </div>
+          <div id="printFolderList" class="print-folder-list"></div>
+          <div id="printFolderEmpty" class="print-folder-empty hidden">این پوشه خالی است.</div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="screenshotFormatDialog" class="site-dialog screenshot-format-dialog">
+    <div class="dialog-card screenshot-format-card">
+      <div class="dialog-head">
+        <div>
+          <div class="section-kicker">صفحه کامل</div>
+          <h3>فرمت اسکرین‌شات</h3>
+        </div>
+        <button id="cancelScreenshotFormatBtn" class="dialog-close" type="button">×</button>
+      </div>
+      <p>تمام طول صفحه ذخیره می‌شود. فرمت خروجی را انتخاب کنید.</p>
+      <div class="screenshot-format-actions">
+        <button id="saveScreenshotJpgBtn" class="capture-format jpg" type="button">
+          <strong>JPG</strong><small>تصویر با کیفیت بالا</small>
+        </button>
+        <button id="saveScreenshotPdfBtn" class="capture-format pdf" type="button">
+          <strong>PDF</strong><small>مناسب چاپ و صفحات طولانی</small>
+        </button>
       </div>
     </div>
   </dialog>

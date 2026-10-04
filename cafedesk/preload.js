@@ -7,6 +7,19 @@ contextBridge.exposeInMainWorld('cafeDesk', {
   getDownloadFolder: () => ipcRenderer.invoke('downloads:get-folder'),
   chooseDownloadFolder: () => ipcRenderer.invoke('downloads:choose-folder'),
   openDownloads: () => ipcRenderer.invoke('downloads:open'),
-  getCredential: (url) => ipcRenderer.invoke('credentials:get', String(url || '')),
-  saveCredential: (payload) => ipcRenderer.invoke('credentials:save', payload || {})
+  getCredentials: (url) => ipcRenderer.invoke('credentials:get', String(url || '')),
+  saveCredential: (payload) => ipcRenderer.invoke('credentials:save', payload || {}),
+  listCredentials: () => ipcRenderer.invoke('credentials:list'),
+  deleteCredential: (payload) => ipcRenderer.invoke('credentials:delete', payload || {}),
+  captureScreenshot: (webContentsId, label) => ipcRenderer.invoke('capture:screenshot', Number(webContentsId), String(label || '')),
+  getMediaSourceId: (webContentsId) => ipcRenderer.invoke('capture:get-media-source-id', Number(webContentsId)),
+  startRecordingFile: (label) => ipcRenderer.invoke('capture:recording-start', String(label || '')),
+  appendRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke('capture:recording-chunk', String(sessionId || ''), chunk),
+  finishRecordingFile: (sessionId) => ipcRenderer.invoke('capture:recording-finish', String(sessionId || '')),
+  abortRecordingFile: (sessionId) => ipcRenderer.invoke('capture:recording-abort', String(sessionId || '')),
+  onGuestOpenTab: (callback) => {
+    ipcRenderer.on('cafedesk:guest-open-tab', (_event, payload) => {
+      if (typeof callback === 'function') callback(payload);
+    });
+  }
 });

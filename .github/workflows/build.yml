@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.15
+name: Build LibraryDesk Desktop 1.0.16
 
 on:
   push:
@@ -65,25 +65,18 @@ jobs:
           $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
           if ($pkg.version -ne "1.0.13") { throw "1.0.13 update did not update version" }
 
-      - name: Apply 1.0.14 overdue-loans and right-click update
+      - name: Apply clean 1.0.16 dashboard update
         shell: pwsh
         run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\apply-1.0.14.ps1.gz.b64" -Raw))
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.16.patch.gz.b64" -Raw))
           $input = New-Object IO.MemoryStream(,$payload)
           $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("updates\apply-1.0.14.ps1")
+          $output = [IO.File]::Create("update-1.0.16.patch")
           $gzip.CopyTo($output)
           $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          & ".\updates\apply-1.0.14.ps1"
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.16.patch"
           $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.14") { throw "1.0.14 update did not update version" }
-
-      - name: Apply 1.0.15 final dashboard layout
-        shell: pwsh
-        run: |
-          & ".\\updates\\apply-1.0.15.ps1"
-          $pkg = Get-Content "build-src\\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.15") { throw "1.0.15 update did not update version" }
+          if ($pkg.version -ne "1.0.16") { throw "1.0.16 update did not update version" }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -107,8 +100,7 @@ jobs:
       - name: Dependency audit report
         working-directory: build-src
         shell: pwsh
-        run: |
-          npm audit --audit-level=high
+        run: npm audit --audit-level=high
         continue-on-error: true
 
       - name: Build Windows x64 Setup
@@ -118,13 +110,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.15-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.15-Win10-x64.exe
+          name: LibraryDesk-1.0.16-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.16-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.15-Portable-Win10-x64
+          name: LibraryDesk-1.0.16-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

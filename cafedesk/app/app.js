@@ -2058,7 +2058,6 @@
   setUiZoom(savedUiZoom);
   refreshDownloadFolder();
   refreshPasswordManager();
-  setTimeout(prewarmSocialViews, 1400);
 
   renderSites();
   renderPicker();

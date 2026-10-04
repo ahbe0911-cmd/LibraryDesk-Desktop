@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.5",
-  "description": "CafeDesk - Persian internet-cafe dashboard with fixed full-height browser panes, isolated sessions, per-site zoom, secure logins, configurable downloads, printing and social web apps",
+  "version": "1.0.6",
+  "description": "CafeDesk - Persian internet-cafe dashboard with internal browser tabs, multi-account password autofill, screenshot and tab recording, portrait social apps and configurable downloads",
   "main": "main.js",
   "private": true,
   "scripts": {

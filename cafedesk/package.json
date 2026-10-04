@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.0",
-  "description": "CafeDesk - desktop workspace for internet cafe with isolated dual web panels",
+  "version": "1.0.1",
+  "description": "CafeDesk - compact internet cafe dashboard with quick site search, isolated dual panels, tools drawer, and adjustable zoom",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -29,7 +29,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

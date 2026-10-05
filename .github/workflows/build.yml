@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.19
+name: Build LibraryDesk Desktop 1.0.20
 
 on:
   push:
@@ -138,6 +138,34 @@ jobs:
           if ($viewerUi -notmatch 'viewerThemeBtn') { throw "Viewer theme control missing" }
           if ($appJs -notmatch 'validIranNationalId') { throw "National ID validation missing" }
 
+      - name: Apply 1.0.20 compact browser and dashboard update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.20.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.20.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --exclude=build-src/package.json --directory=build-src --whitespace=nowarn "update-1.0.20.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.20 patch failed" }
+          $pkgPath = "build-src\package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = "1.0.20"
+          $pkg.description = "LibraryDesk Windows — compact browser toolbar, bookmarks, recovery boost, enhanced overdue cards and realistic clock"
+          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.20") { throw "1.0.20 version update failed" }
+          $mainUi = Get-Content "build-src\app\newtab.html" -Raw
+          $viewerUi = Get-Content "build-src\app\viewer.html" -Raw
+          $viewerJs = Get-Content "build-src\app\viewer.js" -Raw
+          $appJs = Get-Content "build-src\app\app.js" -Raw
+          if ($mainUi -notmatch 'loanLastName') { throw "Last-name field missing" }
+          if ($viewerUi -notmatch 'bookmarkBtn' -or $viewerUi -notmatch 'boost-action') { throw "Compact browser controls missing" }
+          if ($viewerUi -match 'viewerThemeBtn') { throw "Viewer theme toggle was not removed" }
+          if ($viewerJs -notmatch 'improveActiveLoad') { throw "Load recovery action missing" }
+          if ($appJs -notmatch 'loan-national-copy') { throw "Copyable national-id card missing" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -170,13 +198,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.19-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.19-Win10-x64.exe
+          name: LibraryDesk-1.0.20-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.20-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.19-Portable-Win10-x64
+          name: LibraryDesk-1.0.20-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

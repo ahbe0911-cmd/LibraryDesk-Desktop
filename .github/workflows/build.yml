@@ -129,23 +129,9 @@ jobs:
           $mainUi = Get-Content "build-src\app\newtab.html" -Raw
           $viewerUi = Get-Content "build-src\app\viewer.html" -Raw
           $appJs = Get-Content "build-src\app\app.js" -Raw
-          if ($mainUi -notmatch 'loanChangeModal' -or $mainUi -notmatch 'loanAddBtn') { throw "Overdue-loan modal UI missing" }
+          if ($mainUi -notmatch 'loanModal' -or $mainUi -notmatch 'loanAddBtn') { throw "Overdue-loan modal UI missing" }
           if ($viewerUi -notmatch 'viewerThemeBtn') { throw "Viewer theme control missing" }
           if ($appJs -notmatch 'validIranNationalId') { throw "National ID validation missing" }
-
-      - name: Apply 1.0.19 visual and overdue update
-        shell: pwsh
-        run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.19.patch.gz.b64" -Raw))
-          $input = New-Object IO.MemoryStream(,$payload)
-          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("update-1.0.19.patch")
-          $gzip.CopyTo($output)
-          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --directory=build-src --whitespace=nowarn "update-1.0.19.patch"
-          if ($LASTEXITCODE -ne 0) { throw "1.0.19 UI patch failed" }
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.19") { throw "1.0.19 version update failed" }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

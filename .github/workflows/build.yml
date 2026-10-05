@@ -229,25 +229,9 @@ jobs:
       - name: Apply 1.0.24 clock, Eitaa and calendar update
         shell: pwsh
         run: |
-          $patch64 = (Get-Content "updates\update-1.0.24.patch.gz.b64" -Raw) -replace '\s', ''
-          $payload = [Convert]::FromBase64String($patch64)
-          $input = New-Object IO.MemoryStream(,$payload)
-          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
-          $output = [IO.File]::Create("update-1.0.24.patch")
-          $gzip.CopyTo($output)
-          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --exclude=build-src/app/styles.css --directory=build-src --whitespace=nowarn "update-1.0.24.patch"
-          if ($LASTEXITCODE -ne 0) { throw "1.0.24 patch failed" }
-          $styleExtra = Get-Content "updates\update-1.0.24.styles.css" -Raw
-          Add-Content -Path "build-src\app\styles.css" -Value ("\r\n" + $styleExtra) -Encoding UTF8
-          if ($LASTEXITCODE -ne 0) { throw "1.0.24 patch failed" }
-          $pkgPath = "build-src\package.json"
-          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-          $pkg.version = "1.0.24"
-          $pkg.description = "LibraryDesk Windows — silver reference analog clock, Eitaa quick access, centered controls and calendar Today shortcut"
-          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
-          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "1.0.24") { throw "1.0.24 version update failed" }
+          & ".\updates\apply-1.0.24.ps1"
+          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.24") { throw "1.0.24 update failed" }
           $mainUi = Get-Content "build-src\app\newtab.html" -Raw
           $appJs = Get-Content "build-src\app\app.js" -Raw
           $viewerJs = Get-Content "build-src\app\viewer.js" -Raw

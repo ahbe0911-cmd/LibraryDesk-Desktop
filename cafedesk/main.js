@@ -183,6 +183,43 @@ function downloadFolderInfo() {
   };
 }
 
+function getSocialDownloadFolder() {
+  const configured = String(readAppSettings().socialDownloadFolder || '').trim();
+  if (configured) {
+    try {
+      if (fs.statSync(configured).isDirectory()) return configured;
+    } catch {}
+  }
+  return getDownloadFolder();
+}
+
+function socialDownloadFolderInfo() {
+  const folder = getSocialDownloadFolder();
+  return {
+    path: folder,
+    label: path.basename(folder) || folder,
+    inherited: !String(readAppSettings().socialDownloadFolder || '').trim()
+  };
+}
+
+async function chooseSocialDownloadFolder(ownerWindow) {
+  const result = await dialog.showOpenDialog(ownerWindow || undefined, {
+    title: 'انتخاب پوشه ذخیره شبکه‌های اجتماعی',
+    defaultPath: getSocialDownloadFolder(),
+    properties: ['openDirectory', 'createDirectory']
+  });
+
+  if (result.canceled || !result.filePaths?.[0]) {
+    return { ok: false, canceled: true, ...socialDownloadFolderInfo() };
+  }
+
+  const folder = result.filePaths[0];
+  const settings = readAppSettings();
+  settings.socialDownloadFolder = folder;
+  writeAppSettings(settings);
+  return { ok: true, canceled: false, ...socialDownloadFolderInfo() };
+}
+
 function nextAvailableDownloadPath(folder, filename) {
   fs.mkdirSync(folder, { recursive: true });
   const safeName = path.basename(String(filename || 'download'));
@@ -287,7 +324,7 @@ function configureGuestSession(ses) {
 
   ses.on('will-download', (_event, item, sourceContents) => {
     try {
-      const folder = getDownloadFolder();
+      const folder = isSocialPartition ? getSocialDownloadFolder() : getDownloadFolder();
       item.setSavePath(nextAvailableDownloadPath(folder, item.getFilename()));
     } catch {}
 
@@ -501,6 +538,18 @@ app.whenReady().then(() => {
   ipcMain.handle('downloads:open', async () => {
     const result = await shell.openPath(getDownloadFolder());
     return { ok: !result, message: result || '', ...downloadFolderInfo() };
+  });
+
+  ipcMain.handle('social-downloads:get-folder', () => socialDownloadFolderInfo());
+
+  ipcMain.handle('social-downloads:choose-folder', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    return chooseSocialDownloadFolder(owner);
+  });
+
+  ipcMain.handle('social-downloads:open', async () => {
+    const result = await shell.openPath(getSocialDownloadFolder());
+    return { ok: !result, message: result || '', ...socialDownloadFolderInfo() };
   });
 
   function resolveInsideDownloadFolder(candidate) {

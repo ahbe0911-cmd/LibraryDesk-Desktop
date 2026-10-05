@@ -43,6 +43,8 @@
   const passwordManagerDialog = $('passwordManagerDialog');
   const closePasswordManagerBtn = $('closePasswordManagerBtn');
   const passwordManagerList = $('passwordManagerList');
+  const passwordManagerSearch = $('passwordManagerSearch');
+  const passwordManagerAutoCopy = $('passwordManagerAutoCopy');
   const savedPasswordCount = $('savedPasswordCount');
 
   const socialDialog = $('socialDialog');
@@ -51,6 +53,9 @@
   const socialTitle = $('socialTitle');
   const socialWebviewHost = $('socialWebviewHost');
   const socialBrowserPanel = $('socialBrowserPanel');
+  const chooseSocialStorageBtn = $('chooseSocialStorageBtn');
+  const openSocialStorageBtn = $('openSocialStorageBtn');
+  const socialStoragePathLabel = $('socialStoragePathLabel');
   const openPrintFolderSocialBtn = $('openPrintFolderSocialBtn');
   const printFolderPanel = $('printFolderPanel');
   const printFolderPath = $('printFolderPath');
@@ -466,6 +471,8 @@
   let printTargetId = 0;
   let printPreviewDataUrl = '';
   let printPreviewRefreshTimer = null;
+  let printPreviewFrame = 0;
+  let printPreviewRequestVersion = 0;
 
   function currentPrintUiOptions() {
     return {
@@ -493,54 +500,90 @@
   function renderLivePrintPreview() {
     const paper = printPreviewGrid?.closest('.print-paper-preview');
     if (!paper || !printPreviewGrid) return;
+
     const options = currentPrintUiOptions();
     const pps = [1,2,4,6,9,16].includes(options.pagesPerSheet) ? options.pagesPerSheet : 1;
     const layouts = { 1:[1,1], 2:[2,1], 4:[2,2], 6:[2,3], 9:[3,3], 16:[4,4] };
     const layout = layouts[pps] || [1,1];
+
     paper.style.aspectRatio = printPaperRatio(options.pageSize, options.landscape);
     paper.dataset.pagesPerSheet = String(pps);
+
     const marginPx = options.marginType === 'none' ? 0 : (options.marginType === 'default' ? 18 : 10);
     printPreviewGrid.style.padding = marginPx + 'px';
     printPreviewGrid.style.gridTemplateColumns = 'repeat(' + layout[0] + ', minmax(0, 1fr))';
     printPreviewGrid.style.gridTemplateRows = 'repeat(' + layout[1] + ', minmax(0, 1fr))';
-    printPreviewGrid.replaceChildren();
-    for (let index = 0; index < pps; index += 1) {
-      const cell = document.createElement('div');
-      cell.className = 'print-preview-cell';
-      const image = document.createElement('img');
-      image.alt = index === 0 ? 'پیش‌نمایش صفحه برای چاپ' : '';
-      image.src = printPreviewDataUrl || '';
-      image.style.filter = options.color ? 'none' : 'grayscale(1)';
-      image.style.transform = 'scale(' + Math.max(.1, Math.min(2, options.scaleFactor / 100)) + ')';
-      image.style.transformOrigin = 'top center';
-      cell.append(image);
-      printPreviewGrid.append(cell);
+
+    let cells = Array.from(printPreviewGrid.querySelectorAll('.print-preview-cell'));
+    if (cells.length !== pps) {
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < pps; index += 1) {
+        const cell = document.createElement('div');
+        cell.className = 'print-preview-cell';
+        const image = document.createElement('img');
+        image.alt = index === 0 ? 'پیش‌نمایش صفحه برای چاپ' : '';
+        cell.append(image);
+        fragment.append(cell);
+      }
+      printPreviewGrid.replaceChildren(fragment);
+      cells = Array.from(printPreviewGrid.querySelectorAll('.print-preview-cell'));
     }
+
+    const scale = Math.max(.1, Math.min(2, options.scaleFactor / 100));
+    cells.forEach((cell, index) => {
+      const image = cell.querySelector('img');
+      if (!image) return;
+      if (image.src !== printPreviewDataUrl) image.src = printPreviewDataUrl || '';
+      image.alt = index === 0 ? 'پیش‌نمایش صفحه برای چاپ' : '';
+      image.style.filter = options.color ? 'none' : 'grayscale(1)';
+      image.style.transform = 'scale(' + scale + ')';
+      image.style.transformOrigin = 'top center';
+    });
+
     paper.classList.toggle('ready', Boolean(printPreviewDataUrl));
+  }
+
+  function renderLivePrintPreviewBatched() {
+    if (printPreviewFrame) cancelAnimationFrame(printPreviewFrame);
+    printPreviewFrame = requestAnimationFrame(() => {
+      printPreviewFrame = 0;
+      renderLivePrintPreview();
+    });
   }
 
   async function refreshPrintPreviewFromBackend(immediate = false) {
     clearTimeout(printPreviewRefreshTimer);
+    const requestVersion = ++printPreviewRequestVersion;
+
     const run = async () => {
       if (!printTargetId || !printDialog?.open) return;
       try {
-        const preview = await window.cafeDesk.preparePrint(printTargetId, currentPrintUiOptions());
-        if (!preview || !printDialog.open || !printTargetId) return;
+        const targetId = printTargetId;
+        const preview = await window.cafeDesk.preparePrint(targetId, currentPrintUiOptions());
+        if (
+          requestVersion !== printPreviewRequestVersion ||
+          !preview ||
+          !printDialog.open ||
+          targetId !== printTargetId
+        ) return;
+
         if (preview.previewDataUrl) printPreviewDataUrl = preview.previewDataUrl;
-        renderLivePrintPreview();
+        renderLivePrintPreviewBatched();
+
         const pages = Math.max(1, Number(preview.pageCount) || 1);
         const sheets = Math.max(1, Number(preview.sheetCount) || 1);
         if (printSheetCount) printSheetCount.textContent = faNumber(pages) + ' صفحه • ' + faNumber(sheets) + ' برگ';
         if (printDocumentTitle && preview.title) printDocumentTitle.textContent = preview.title;
       } catch {}
     };
+
     if (immediate) await run();
-    else printPreviewRefreshTimer = setTimeout(run, 240);
+    else printPreviewRefreshTimer = setTimeout(run, 720);
   }
 
-  function schedulePrintPreviewRefresh() {
-    renderLivePrintPreview();
-    refreshPrintPreviewFromBackend(false);
+  function schedulePrintPreviewRefresh({ backend = false } = {}) {
+    renderLivePrintPreviewBatched();
+    if (backend) refreshPrintPreviewFromBackend(false);
   }
 
   function parsePrintRanges(value) {
@@ -684,25 +727,30 @@
   });
   printDuplex?.addEventListener('change', () => {
     printDuplexEdgeWrap?.classList.toggle('hidden', !printDuplex.checked);
-    schedulePrintPreviewRefresh();
+    schedulePrintPreviewRefresh({ backend: false });
   });
 
-  [
-    printPagesMode,
-    printCustomPages,
-    printCopies,
-    printPaperSize,
-    printPagesPerSheet,
-    printScale,
-    printColor,
-    printOrientation,
-    printDuplexEdge,
-    printMargins
-  ].filter(Boolean).forEach((control) => {
-    control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', schedulePrintPreviewRefresh);
-  });
+  [printCopies, printPagesPerSheet, printColor, printDuplexEdge]
+    .filter(Boolean)
+    .forEach((control) => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', () => {
+        schedulePrintPreviewRefresh({ backend: false });
+      });
+    });
+
+  [printPagesMode, printCustomPages, printPaperSize, printScale, printOrientation, printMargins]
+    .filter(Boolean)
+    .forEach((control) => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', () => {
+        schedulePrintPreviewRefresh({ backend: true });
+      });
+    });
 
   printDialog?.addEventListener('close', () => {
+    clearTimeout(printPreviewRefreshTimer);
+    printPreviewRequestVersion += 1;
+    if (printPreviewFrame) cancelAnimationFrame(printPreviewFrame);
+    printPreviewFrame = 0;
     printTargetWebview = null;
     printTargetId = 0;
   });
@@ -1350,37 +1398,118 @@
   });
   closeToolsBtn.addEventListener('click', () => toolsDialog.close());
 
-  async function refreshPasswordManager() {
-    let items = [];
-    try { items = await window.cafeDesk.listCredentials(); } catch {}
+  let passwordManagerCache = [];
 
-    if (savedPasswordCount) savedPasswordCount.textContent = faNumber(items.length);
+  function normalizeCredentialSearch(value) {
+    return String(value || '')
+      .trim()
+      .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+      .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+      .toLocaleLowerCase();
+  }
+
+  function isEblaghCredentialItem(item) {
+    try {
+      const host = new URL(item?.origin || '').hostname.toLowerCase();
+      return host === 'adliran.ir' || host.endsWith('.adliran.ir');
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyManagedCredential(item, what = 'password') {
+    try {
+      const entries = await window.cafeDesk.getCredentials(item.origin);
+      const key = normalizeCredentialSearch(item.username);
+      const match = (Array.isArray(entries) ? entries : []).find((entry) =>
+        normalizeCredentialSearch(entry.username) === key
+      );
+      if (!match) return;
+
+      const value = what === 'username' ? String(match.username || '') : String(match.password || '');
+      if (!value) return;
+      await window.cafeDesk.copyText(value);
+      showToast(what === 'username' ? '✓ کد ملی / نام کاربری کپی شد' : '✓ رمز کپی شد', 'success');
+    } catch {}
+  }
+
+  function renderPasswordManager() {
     if (!passwordManagerList) return;
+
+    const query = normalizeCredentialSearch(passwordManagerSearch?.value || '');
+    const items = passwordManagerCache.filter((item) => {
+      if (!query) return true;
+      return (
+        normalizeCredentialSearch(item.username).includes(query) ||
+        normalizeCredentialSearch(item.origin).includes(query)
+      );
+    });
 
     passwordManagerList.replaceChildren();
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'password-manager-empty';
-      empty.textContent = 'هنوز رمزی ذخیره نشده است.';
+      empty.textContent = query ? 'حسابی با این کد ملی یا سایت پیدا نشد.' : 'هنوز رمزی ذخیره نشده است.';
       passwordManagerList.append(empty);
       return;
     }
 
     items.forEach((item) => {
+      const eblagh = isEblaghCredentialItem(item);
       const row = document.createElement('div');
-      row.className = 'password-manager-row';
+      row.className = 'password-manager-row' + (eblagh ? ' eblagh-row' : '');
+      row.tabIndex = 0;
 
       const text = document.createElement('div');
+      text.className = 'password-manager-identity';
+
+      const titleLine = document.createElement('div');
+      titleLine.className = 'password-manager-title-line';
+
       const strong = document.createElement('strong');
-      strong.textContent = item.username || 'بدون نام کاربری';
+      strong.textContent = eblagh
+        ? 'کد ملی: ' + (item.username || '—')
+        : (item.username || 'بدون نام کاربری');
+      titleLine.append(strong);
+
+      if (eblagh) {
+        const badge = document.createElement('span');
+        badge.className = 'credential-chip eblagh';
+        badge.textContent = 'ثنا / ابلاغ';
+        titleLine.append(badge);
+      }
+
       const small = document.createElement('small');
       small.textContent = item.origin;
-      text.append(strong, small);
+      text.append(titleLine, small);
+
+      const actions = document.createElement('div');
+      actions.className = 'password-manager-actions';
+
+      const copyUser = document.createElement('button');
+      copyUser.type = 'button';
+      copyUser.className = 'credential-copy-btn';
+      copyUser.textContent = eblagh ? 'کپی کد ملی' : 'کپی نام';
+      copyUser.addEventListener('click', (event) => {
+        event.stopPropagation();
+        copyManagedCredential(item, 'username');
+      });
+
+      const copyPassword = document.createElement('button');
+      copyPassword.type = 'button';
+      copyPassword.className = 'credential-copy-btn primary';
+      copyPassword.textContent = 'کپی رمز';
+      copyPassword.addEventListener('click', (event) => {
+        event.stopPropagation();
+        copyManagedCredential(item, 'password');
+      });
 
       const remove = document.createElement('button');
       remove.type = 'button';
+      remove.className = 'credential-remove-btn';
       remove.textContent = 'حذف';
-      remove.addEventListener('click', async () => {
+      remove.addEventListener('click', async (event) => {
+        event.stopPropagation();
         if (!confirm(`رمز ذخیره‌شده برای «${item.username || item.origin}» حذف شود؟`)) return;
         await window.cafeDesk.deleteCredential(item);
         await refreshPasswordManager();
@@ -1388,15 +1517,39 @@
         socialViews.forEach((view) => syncSavedCredentials(view));
       });
 
-      row.append(text, remove);
+      row.addEventListener('click', () => {
+        if (passwordManagerAutoCopy?.checked) copyManagedCredential(item, 'password');
+      });
+      row.addEventListener('keydown', (event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && passwordManagerAutoCopy?.checked) {
+          event.preventDefault();
+          copyManagedCredential(item, 'password');
+        }
+      });
+
+      actions.append(copyUser, copyPassword, remove);
+      row.append(text, actions);
       passwordManagerList.append(row);
     });
   }
 
+  async function refreshPasswordManager() {
+    try { passwordManagerCache = await window.cafeDesk.listCredentials(); }
+    catch { passwordManagerCache = []; }
+
+    if (!Array.isArray(passwordManagerCache)) passwordManagerCache = [];
+    if (savedPasswordCount) savedPasswordCount.textContent = faNumber(passwordManagerCache.length);
+    renderPasswordManager();
+  }
+
+  passwordManagerSearch?.addEventListener('input', renderPasswordManager);
+
   openPasswordManagerBtn?.addEventListener('click', () => {
     toolsDialog.close();
+    if (passwordManagerSearch) passwordManagerSearch.value = '';
     passwordManagerDialog.showModal();
     refreshPasswordManager();
+    setTimeout(() => passwordManagerSearch?.focus(), 80);
   });
   closePasswordManagerBtn?.addEventListener('click', () => passwordManagerDialog.close());
 
@@ -1868,8 +2021,42 @@
     });
   }
 
+  function showSocialStorageFolder(info) {
+    if (!socialStoragePathLabel || !info) return;
+    const label = info.label || 'Downloads';
+    socialStoragePathLabel.textContent = info.inherited ? 'پیش‌فرض: ' + label : label;
+    socialStoragePathLabel.title = info.path || '';
+    if (chooseSocialStorageBtn) {
+      chooseSocialStorageBtn.title = info.path
+        ? 'پوشه ذخیره شبکه‌های اجتماعی: ' + info.path
+        : 'انتخاب پوشه ذخیره شبکه‌های اجتماعی';
+    }
+  }
+
+  async function refreshSocialStorageFolder() {
+    try {
+      showSocialStorageFolder(await window.cafeDesk.getSocialDownloadFolder());
+    } catch {}
+  }
+
+  chooseSocialStorageBtn?.addEventListener('click', async () => {
+    try {
+      const result = await window.cafeDesk.chooseSocialDownloadFolder();
+      showSocialStorageFolder(result);
+      if (result?.ok) showSocialToast('✓ آدرس ذخیره شبکه‌ها ثبت شد', 'success');
+    } catch {}
+  });
+
+  openSocialStorageBtn?.addEventListener('click', async () => {
+    try {
+      const result = await window.cafeDesk.openSocialDownloadFolder();
+      if (!result?.ok && result?.message) showSocialToast('باز کردن پوشه انجام نشد', 'error');
+    } catch {}
+  });
+
   openSocialBtn.addEventListener('click', () => {
     socialDialog.showModal();
+    refreshSocialStorageFolder();
     leavePrintFolderMode();
     socialBrowserPanel?.classList.remove('hidden');
     activateSocial(activeSocial);

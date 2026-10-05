@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.14",
-  "description": "CafeDesk - Persian dual-browser desktop with robust Eblagh PDF popup tabs, cropped social app rail, unified live Chrome-style printing, stable tab switching and verified credential saving",
+  "version": "1.0.15",
+  "description": "CafeDesk - Persian dual-browser desktop with persistent social download folder tools, smooth print preview, searchable Eblagh credential manager and instant national-ID autofill",
   "main": "main.js",
   "private": true,
   "scripts": {

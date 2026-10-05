@@ -72,6 +72,30 @@
   const appToast = $('appToast');
   const appToastText = $('appToastText');
 
+  const printDialog = $('printDialog');
+  const closePrintDialogBtn = $('closePrintDialogBtn');
+  const cancelPrintBtn = $('cancelPrintBtn');
+  const confirmPrintBtn = $('confirmPrintBtn');
+  const systemPrintDialogBtn = $('systemPrintDialogBtn');
+  const printDestination = $('printDestination');
+  const printPagesMode = $('printPagesMode');
+  const printCustomPagesWrap = $('printCustomPagesWrap');
+  const printCustomPages = $('printCustomPages');
+  const printCopies = $('printCopies');
+  const printPaperSize = $('printPaperSize');
+  const printPagesPerSheet = $('printPagesPerSheet');
+  const printScale = $('printScale');
+  const printColor = $('printColor');
+  const printOrientation = $('printOrientation');
+  const printDuplex = $('printDuplex');
+  const printDuplexEdgeWrap = $('printDuplexEdgeWrap');
+  const printDuplexEdge = $('printDuplexEdge');
+  const printMargins = $('printMargins');
+  const printPreviewImage = $('printPreviewImage');
+  const printPreviewPlaceholder = $('printPreviewPlaceholder');
+  const printSheetCount = $('printSheetCount');
+  const printDocumentTitle = $('printDocumentTitle');
+
   const screenshotFormatDialog = $('screenshotFormatDialog');
   const cancelScreenshotFormatBtn = $('cancelScreenshotFormatBtn');
   const saveScreenshotJpgBtn = $('saveScreenshotJpgBtn');
@@ -81,6 +105,7 @@
 
   const digitalClock = $('digitalClock');
   const jalaliDateText = $('jalaliDateText');
+  const headerDateTime = document.querySelector('.header-datetime');
   const closeWorkspaceBtn = $('closeWorkspaceBtn');
 
   const panes = {
@@ -436,13 +461,165 @@
   }
 
 
-  async function printWebview(webview) {
-    if (!webview) return;
-    try {
-      const result = webview.print({ silent: false, printBackground: true });
-      if (result && typeof result.catch === 'function') result.catch(() => {});
-    } catch {}
+  let printTargetWebview = null;
+  let printTargetId = 0;
+
+  function parsePrintRanges(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return [];
+
+    const ranges = [];
+    for (const part of raw.split(',')) {
+      const token = part.trim();
+      if (!token) continue;
+      const match = token.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+      if (!match) continue;
+      const start = Math.max(1, Number(match[1]) || 1);
+      const end = Math.max(start, Number(match[2] || match[1]) || start);
+      ranges.push({ from: start - 1, to: end - 1 });
+    }
+    return ranges;
   }
+
+  function resetPrintDialogUi() {
+    if (printPagesMode) printPagesMode.value = 'all';
+    if (printCustomPages) printCustomPages.value = '';
+    printCustomPagesWrap?.classList.add('hidden');
+    if (printCopies) printCopies.value = '1';
+    if (printPaperSize) printPaperSize.value = 'A4';
+    if (printPagesPerSheet) printPagesPerSheet.value = '1';
+    if (printScale) printScale.value = '100';
+    if (printColor) printColor.value = 'color';
+    if (printOrientation) printOrientation.value = 'portrait';
+    if (printDuplex) printDuplex.checked = false;
+    printDuplexEdgeWrap?.classList.add('hidden');
+    if (printDuplexEdge) printDuplexEdge.value = 'longEdge';
+    if (printMargins) printMargins.value = 'printableArea';
+    if (printSheetCount) printSheetCount.textContent = 'در حال آماده‌سازی…';
+    if (printPreviewImage) {
+      printPreviewImage.removeAttribute('src');
+      printPreviewImage.closest('.print-paper-preview')?.classList.remove('ready');
+    }
+  }
+
+  async function printWebview(webview) {
+    if (!webview || !printDialog) return;
+    printTargetWebview = webview;
+    try { printTargetId = webview.getWebContentsId(); } catch { printTargetId = 0; }
+    if (!printTargetId) return;
+
+    resetPrintDialogUi();
+    if (printDocumentTitle) {
+      let title = 'صفحه فعلی';
+      try { title = webview.getTitle?.() || hostLabel(webview.getURL?.()) || title; } catch {}
+      printDocumentTitle.textContent = title;
+    }
+
+    printDialog.showModal();
+
+    const [printers, preview] = await Promise.all([
+      window.cafeDesk.getPrinters?.().catch?.(() => []) || Promise.resolve([]),
+      window.cafeDesk.preparePrint?.(printTargetId).catch?.(() => null) || Promise.resolve(null)
+    ]);
+
+    if (printDestination) {
+      printDestination.replaceChildren();
+      const list = Array.isArray(printers) ? printers : [];
+      if (!list.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'چاپگر پیش‌فرض ویندوز';
+        printDestination.append(option);
+      } else {
+        list.forEach((printer) => {
+          const option = document.createElement('option');
+          option.value = printer.name || '';
+          option.textContent = printer.displayName || printer.name || 'چاپگر';
+          if (printer.isDefault) option.selected = true;
+          printDestination.append(option);
+        });
+      }
+    }
+
+    if (preview && printDialog.open) {
+      if (printSheetCount) {
+        const count = Math.max(1, Number(preview.pageCount) || 1);
+        printSheetCount.textContent = faNumber(count) + (count === 1 ? ' برگ' : ' برگ');
+      }
+      if (printDocumentTitle && preview.title) printDocumentTitle.textContent = preview.title;
+      if (printPreviewImage && preview.previewDataUrl) {
+        printPreviewImage.src = preview.previewDataUrl;
+        printPreviewImage.closest('.print-paper-preview')?.classList.add('ready');
+      }
+    }
+  }
+
+  async function submitCafeDeskPrint(useSystemDialog = false) {
+    if (!printTargetId) return;
+    confirmPrintBtn && (confirmPrintBtn.disabled = true);
+    systemPrintDialogBtn && (systemPrintDialogBtn.disabled = true);
+
+    try {
+      if (useSystemDialog) {
+        printDialog?.close();
+        await window.cafeDesk.printGuestSystem(printTargetId);
+        return;
+      }
+
+      const pageRanges = printPagesMode?.value === 'custom'
+        ? parsePrintRanges(printCustomPages?.value)
+        : [];
+
+      if (printPagesMode?.value === 'custom' && !pageRanges.length) {
+        alert('محدوده صفحات را مثل 1-3, 5 وارد کنید.');
+        return;
+      }
+
+      const result = await window.cafeDesk.printGuest(printTargetId, {
+        deviceName: printDestination?.value || '',
+        pageRanges,
+        copies: Number(printCopies?.value || 1),
+        pageSize: printPaperSize?.value || 'A4',
+        pagesPerSheet: Number(printPagesPerSheet?.value || 1),
+        scaleFactor: Number(printScale?.value || 100),
+        color: printColor?.value !== 'gray',
+        landscape: printOrientation?.value === 'landscape',
+        duplexMode: printDuplex?.checked ? (printDuplexEdge?.value || 'longEdge') : 'simplex',
+        marginType: printMargins?.value || 'printableArea',
+        printBackground: true,
+        collate: true
+      });
+
+      if (!result?.ok) {
+        alert('چاپ انجام نشد: ' + (result?.message || 'خطای چاپگر'));
+        return;
+      }
+
+      const match = tabByWebContentsId(printTargetId);
+      printDialog?.close();
+      if (match?.side) showPaneToast(match.side, '✓ فایل به چاپگر ارسال شد', 'success');
+      else showToast('✓ فایل به چاپگر ارسال شد', 'success');
+    } finally {
+      confirmPrintBtn && (confirmPrintBtn.disabled = false);
+      systemPrintDialogBtn && (systemPrintDialogBtn.disabled = false);
+    }
+  }
+
+  closePrintDialogBtn?.addEventListener('click', () => printDialog.close());
+  cancelPrintBtn?.addEventListener('click', () => printDialog.close());
+  confirmPrintBtn?.addEventListener('click', () => submitCafeDeskPrint(false));
+  systemPrintDialogBtn?.addEventListener('click', () => submitCafeDeskPrint(true));
+  printPagesMode?.addEventListener('change', () => {
+    printCustomPagesWrap?.classList.toggle('hidden', printPagesMode.value !== 'custom');
+    if (printPagesMode.value === 'custom') printCustomPages?.focus();
+  });
+  printDuplex?.addEventListener('change', () => {
+    printDuplexEdgeWrap?.classList.toggle('hidden', !printDuplex.checked);
+  });
+  printDialog?.addEventListener('close', () => {
+    printTargetWebview = null;
+    printTargetId = 0;
+  });
 
   async function syncSavedCredentials(webview) {
     if (!webview || !window.cafeDesk?.getCredentials) return;
@@ -795,6 +972,7 @@
     const isPostNavigation = String(navigation?.method || '').toLowerCase() === 'post' && Array.isArray(navigation?.fields);
     webview.setAttribute('src', isPostNavigation ? 'about:blank' : url);
     webview.setAttribute('allowpopups', 'true');
+    webview.setAttribute('plugins', '');
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,backgroundThrottling=no');
     if (site?.kind === 'social') webview.setAttribute('useragent', SOCIAL_MOBILE_UA);
     webview.setAttribute('aria-label', site.name || hostLabel(url));
@@ -1719,6 +1897,26 @@
   uiZoomSelect.addEventListener('change', () => setUiZoom(uiZoomSelect.value));
 
   // Compact digital clock and current Jalali date in the top bar.
+  const persianOrdinalDays = [
+    '', 'یکم', 'دوم', 'سوم', 'چهارم', 'پنجم', 'ششم', 'هفتم', 'هشتم', 'نهم', 'دهم',
+    'یازدهم', 'دوازدهم', 'سیزدهم', 'چهاردهم', 'پانزدهم', 'شانزدهم', 'هفدهم', 'هجدهم', 'نوزدهم',
+    'بیستم', 'بیست‌ویکم', 'بیست‌ودوم', 'بیست‌وسوم', 'بیست‌وچهارم', 'بیست‌وپنجم',
+    'بیست‌وششم', 'بیست‌وهفتم', 'بیست‌وهشتم', 'بیست‌ونهم', 'سی‌ام', 'سی‌ویکم'
+  ];
+  const persianMonthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+
+  function jalaliNumericParts(date) {
+    const formatter = new Intl.DateTimeFormat('en-US-u-ca-persian', {
+      year: 'numeric', month: 'numeric', day: 'numeric'
+    });
+    const parts = Object.fromEntries(
+      formatter.formatToParts(date)
+        .filter((part) => ['year','month','day'].includes(part.type))
+        .map((part) => [part.type, Number(part.value)])
+    );
+    return { year: parts.year, month: parts.month, day: parts.day };
+  }
+
   function updateHeaderDateTime() {
     const now = new Date();
     if (digitalClock) {
@@ -1729,14 +1927,17 @@
         hour12: false
       }).format(now);
     }
+
+    const current = jalaliNumericParts(now);
+    const weekday = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(now);
+    const ordinal = persianOrdinalDays[current.day] || faNumber(current.day);
+    const month = persianMonthNames[current.month - 1] || '';
+    const year = new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(current.year);
+
     if (jalaliDateText) {
-      jalaliDateText.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      }).format(now);
+      jalaliDateText.textContent = `امروز، ${weekday}، ${ordinal} ${month} سال ${year}`;
     }
+    if (headerDateTime) headerDateTime.dataset.tone = String(current.day % 7);
   }
 
   updateHeaderDateTime();
@@ -1750,8 +1951,15 @@
   let calcOperator = null;
   let calcReset = false;
 
+  function calcToPersian(value) {
+    return String(value)
+      .replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])
+      .replace(/\./g, '٫')
+      .replace(/-/g, '−');
+  }
+
   function calcRender() {
-    calcDisplay.value = calcCurrent;
+    calcDisplay.value = calcCurrent === 'خطا' ? 'خطا' : calcToPersian(calcCurrent);
   }
 
   function calculate(a, b, op) {
@@ -1833,6 +2041,36 @@
   calcKeys.addEventListener('click', (event) => {
     const button = event.target.closest('[data-calc]');
     if (button) handleCalc(button.dataset.calc);
+  });
+
+  function normalizeCalcKeyboardKey(key) {
+    const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+    const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+    const pIndex = persianDigits.indexOf(key);
+    if (pIndex >= 0) return String(pIndex);
+    const aIndex = arabicDigits.indexOf(key);
+    if (aIndex >= 0) return String(aIndex);
+    if (/^\d$/.test(key)) return key;
+    if (key === '*' || key === 'x' || key === 'X') return '×';
+    if (key === '/') return '÷';
+    if (key === 'Enter' || key === '=') return '=';
+    if (key === 'Backspace') return '⌫';
+    if (key === 'Escape' || key === 'Delete') return 'C';
+    if (key === ',' || key === '٫') return '.';
+    if (['+','-','%','.'].includes(key)) return key;
+    return '';
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (!toolsDialog?.open) return;
+    const target = event.target;
+    const editable = target?.matches?.('input:not([readonly]),textarea,[contenteditable="true"]');
+    if (editable) return;
+
+    const calcKey = normalizeCalcKeyboardKey(event.key);
+    if (!calcKey) return;
+    event.preventDefault();
+    handleCalc(calcKey);
   });
 
   // Password generator

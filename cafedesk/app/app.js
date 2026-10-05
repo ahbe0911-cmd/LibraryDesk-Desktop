@@ -575,10 +575,10 @@
     if (printDuplexEdge) printDuplexEdge.value = 'longEdge';
     if (printMargins) printMargins.value = 'printableArea';
     if (printSheetCount) printSheetCount.textContent = 'در حال آماده‌سازی…';
-    if (printPreviewImage) {
-      printPreviewImage.removeAttribute('src');
-      printPreviewImage.closest('.print-paper-preview')?.classList.remove('ready');
-    }
+    printPreviewDataUrl = '';
+    if (printPreviewImage) printPreviewImage.removeAttribute('src');
+    printPreviewGrid?.replaceChildren();
+    printPreviewGrid?.closest('.print-paper-preview')?.classList.remove('ready');
   }
 
   async function printWebview(webview) {
@@ -598,7 +598,7 @@
 
     const [printers, preview] = await Promise.all([
       window.cafeDesk.getPrinters?.().catch?.(() => []) || Promise.resolve([]),
-      window.cafeDesk.preparePrint?.(printTargetId).catch?.(() => null) || Promise.resolve(null)
+      window.cafeDesk.preparePrint?.(printTargetId, currentPrintUiOptions()).catch?.(() => null) || Promise.resolve(null)
     ]);
 
     if (printDestination) {
@@ -621,15 +621,12 @@
     }
 
     if (preview && printDialog.open) {
-      if (printSheetCount) {
-        const count = Math.max(1, Number(preview.pageCount) || 1);
-        printSheetCount.textContent = faNumber(count) + (count === 1 ? ' برگ' : ' برگ');
-      }
+      if (preview.previewDataUrl) printPreviewDataUrl = preview.previewDataUrl;
       if (printDocumentTitle && preview.title) printDocumentTitle.textContent = preview.title;
-      if (printPreviewImage && preview.previewDataUrl) {
-        printPreviewImage.src = preview.previewDataUrl;
-        printPreviewImage.closest('.print-paper-preview')?.classList.add('ready');
-      }
+      const pages = Math.max(1, Number(preview.pageCount) || 1);
+      const sheets = Math.max(1, Number(preview.sheetCount) || 1);
+      if (printSheetCount) printSheetCount.textContent = faNumber(pages) + ' صفحه • ' + faNumber(sheets) + ' برگ';
+      renderLivePrintPreview();
     }
   }
 
@@ -654,18 +651,11 @@
         return;
       }
 
+      const uiOptions = currentPrintUiOptions();
       const result = await window.cafeDesk.printGuest(printTargetId, {
         deviceName: printDestination?.value || '',
         pageRanges,
-        copies: Number(printCopies?.value || 1),
-        pageSize: printPaperSize?.value || 'A4',
-        pagesPerSheet: Number(printPagesPerSheet?.value || 1),
-        scaleFactor: Number(printScale?.value || 100),
-        color: printColor?.value !== 'gray',
-        landscape: printOrientation?.value === 'landscape',
-        duplexMode: printDuplex?.checked ? (printDuplexEdge?.value || 'longEdge') : 'simplex',
-        marginType: printMargins?.value || 'printableArea',
-        printBackground: true,
+        ...uiOptions,
         collate: true
       });
 
@@ -694,7 +684,24 @@
   });
   printDuplex?.addEventListener('change', () => {
     printDuplexEdgeWrap?.classList.toggle('hidden', !printDuplex.checked);
+    schedulePrintPreviewRefresh();
   });
+
+  [
+    printPagesMode,
+    printCustomPages,
+    printCopies,
+    printPaperSize,
+    printPagesPerSheet,
+    printScale,
+    printColor,
+    printOrientation,
+    printDuplexEdge,
+    printMargins
+  ].filter(Boolean).forEach((control) => {
+    control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', schedulePrintPreviewRefresh);
+  });
+
   printDialog?.addEventListener('close', () => {
     printTargetWebview = null;
     printTargetId = 0;
@@ -1019,7 +1026,10 @@
       });
 
       item.append(label, close);
-      item.addEventListener('click', () => activatePaneTab(side, tab.id));
+      item.addEventListener('click', (event) => {
+        event.stopPropagation();
+        activatePaneTab(side, tab.id);
+      });
       pane.tabbar.append(item);
     });
   }
@@ -1193,6 +1203,7 @@
     });
 
     pane.slot.onclick = null;
+    pane.slot.removeAttribute('data-empty-side');
     pane.slot.replaceChildren();
     pane.slot.className = 'pane-slot';
 
@@ -1247,6 +1258,7 @@
     pane.toolbarHost = null;
     pane.frame = null;
     pane.slot.className = 'pane-slot empty-pane';
+    pane.slot.dataset.emptySide = side;
     pane.slot.replaceChildren();
 
     const replacement = emptyPaneNode(side);
@@ -1925,12 +1937,13 @@
     host.addEventListener('mousedown', () => setActivePane(host.dataset.pane));
   });
 
-  document.querySelectorAll('[data-empty-side]').forEach((empty) => {
-    empty.addEventListener('click', () => {
-      const side = empty.dataset.emptySide;
+  Object.entries(panes).forEach(([side, pane]) => {
+    if (!pane?.slot?.classList.contains('empty-pane')) return;
+    pane.slot.onclick = () => {
+      if (!pane.slot.classList.contains('empty-pane')) return;
       setActivePane(side);
       openSitePicker(side);
-    });
+    };
   });
 
   document.addEventListener('keydown', (event) => {

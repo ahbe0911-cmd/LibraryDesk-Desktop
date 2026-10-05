@@ -48,11 +48,8 @@ if (-not $appJs.Contains('function goCalendarToday()')) {
   $new = $old + [Environment]::NewLine + 'function goCalendarToday(){const t=nowJ();vy=t[0];vm=t[1];selected=key(t[0],t[1],t[2]);renderCalendar();const info=document.querySelector("#holidayInfo");if(info)info.textContent=`امروز: ${fa(t[2])} ${pMonths[t[1]-1]} ${fa(t[0])}`}'
   $appJs = Replace-Required $appJs $old $new "goCalendarToday"
 }
-if (-not $appJs.Contains("$('#calendarTodayBtn')?.addEventListener('click',goCalendarToday);")) {
-  $anchor = "$('#settingsBtn').onclick"
-  $idx = $appJs.IndexOf($anchor)
-  if ($idx -lt 0) { throw "1.0.24 missing target: calendar Today listener anchor" }
-  $appJs = $appJs.Insert($idx, "$('#calendarTodayBtn')?.addEventListener('click',goCalendarToday);" + [Environment]::NewLine)
+if (-not $appJs.Contains("calendarTodayBtn")) {
+  $appJs += [Environment]::NewLine + "document.addEventListener('DOMContentLoaded',()=>{document.getElementById('calendarTodayBtn')?.addEventListener('click',goCalendarToday)});" + [Environment]::NewLine
 }
 [IO.File]::WriteAllText($appJsPath,$appJs,$utf8)
 

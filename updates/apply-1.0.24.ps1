@@ -49,10 +49,10 @@ if (-not $appJs.Contains('function goCalendarToday()')) {
   $appJs = Replace-Required $appJs $old $new "goCalendarToday"
 }
 if (-not $appJs.Contains("$('#calendarTodayBtn')?.addEventListener('click',goCalendarToday);")) {
-  $anchor = " $('#settingsBtn').onclick"
+  $anchor = "$('#settingsBtn').onclick"
   $idx = $appJs.IndexOf($anchor)
   if ($idx -lt 0) { throw "1.0.24 missing target: calendar Today listener anchor" }
-  $appJs = $appJs.Insert($idx, " $('#calendarTodayBtn')?.addEventListener('click',goCalendarToday);" + [Environment]::NewLine)
+  $appJs = $appJs.Insert($idx, "$('#calendarTodayBtn')?.addEventListener('click',goCalendarToday);" + [Environment]::NewLine)
 }
 [IO.File]::WriteAllText($appJsPath,$appJs,$utf8)
 

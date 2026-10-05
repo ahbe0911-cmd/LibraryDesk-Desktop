@@ -1,4 +1,4 @@
-name: Build CafeDesk 1.0.12
+name: Build CafeDesk 1.0.13
 
 on:
   push:
@@ -119,13 +119,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: CafeDesk-1.0.12-Setup-Win10-x64
-          path: cafedesk/dist/CafeDesk-Setup-1.0.12-Win10-x64.exe
+          name: CafeDesk-1.0.13-Setup-Win10-x64
+          path: cafedesk/dist/CafeDesk-Setup-1.0.13-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload portable
         uses: actions/upload-artifact@v4
         with:
-          name: CafeDesk-1.0.12-Portable-Win10-x64
+          name: CafeDesk-1.0.13-Portable-Win10-x64
           path: cafedesk/dist/win-unpacked/**
           if-no-files-found: error

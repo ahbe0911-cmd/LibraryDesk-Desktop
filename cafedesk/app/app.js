@@ -736,6 +736,7 @@
   }
 
   function makePaneWebview(side, site, url, tab) {
+    const pane = panes[side];
     const webview = document.createElement('webview');
     webview.className = 'pane-tab-webview hidden';
     webview.setAttribute('partition', `persist:cafedesk-pane-${side}`);

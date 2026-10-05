@@ -309,6 +309,28 @@ function configureGuestSession(ses) {
   });
 }
 
+function canOpenInsideCafeDesk(url) {
+  const value = String(url || '');
+  return /^https?:/i.test(value) || /^blob:https?:/i.test(value) || /^data:application\/pdf/i.test(value);
+}
+
+function sendGuestOpenTab(contents, url, disposition = 'new-tab', extra = {}) {
+  if (!canOpenInsideCafeDesk(url)) return false;
+  const host = contents?.hostWebContents;
+  if (!host || host.isDestroyed?.()) return false;
+  try {
+    host.send('cafedesk:guest-open-tab', {
+      sourceId: contents.id,
+      url: String(url),
+      disposition,
+      ...extra
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function showGuestContextMenu(contents, params) {
   const template = [];
 
@@ -321,11 +343,22 @@ function showGuestContextMenu(contents, params) {
     template.push({ label: 'کپی', role: 'copy' });
   }
 
-  if (params.linkURL && /^https?:/i.test(params.linkURL)) {
+  const linkUrl = String(params.linkURL || '');
+  if (canOpenInsideCafeDesk(linkUrl)) {
     if (template.length) template.push({ type: 'separator' });
     template.push(
-      { label: 'باز کردن لینک در همین پنل', click: () => contents.loadURL(params.linkURL).catch(() => {}) },
-      { label: 'کپی آدرس لینک', click: () => clipboard.writeText(params.linkURL) }
+      {
+        label: 'باز کردن در تب جدید',
+        click: () => sendGuestOpenTab(contents, linkUrl, 'context-menu')
+      },
+      {
+        label: 'باز کردن لینک در همین پنل',
+        click: () => contents.loadURL(linkUrl).catch(() => {})
+      },
+      {
+        label: 'کپی آدرس لینک',
+        click: () => clipboard.writeText(linkUrl)
+      }
     );
   }
 
@@ -341,24 +374,74 @@ function configureGuestContents(contents) {
 
   contents.setWindowOpenHandler((details) => {
     const url = String(details?.url || '');
-    if (/^https?:/i.test(url) || /^blob:https?:/i.test(url) || /^data:application\/pdf/i.test(url)) {
-      const host = contents.hostWebContents;
-      if (host && !host.isDestroyed()) {
-        host.send('cafedesk:guest-open-tab', {
-          sourceId: contents.id,
-          url,
-          disposition: details.disposition || 'new-window',
-          referrer: details.referrer?.url || ''
-        });
-      }
+
+    if (canOpenInsideCafeDesk(url)) {
+      sendGuestOpenTab(contents, url, details.disposition || 'new-window', {
+        referrer: details.referrer?.url || ''
+      });
       return { action: 'deny' };
     }
+
+    // Some Eblagh/Sana actions open about:blank first, then navigate that
+    // child to the PDF. Allow a tiny hidden bridge window so the site's
+    // JavaScript receives a real Window object; its next navigation is
+    // immediately rerouted into an internal CafeDesk tab.
+    if (/^about:blank$/i.test(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          show: false,
+          frame: false,
+          skipTaskbar: true,
+          width: 2,
+          height: 2,
+          backgroundColor: '#ffffff'
+        }
+      };
+    }
+
     if (/^(mailto|tel):/i.test(url)) shell.openExternal(url).catch(() => {});
     return { action: 'deny' };
   });
 
+  contents.on('did-create-window', (childWindow, details) => {
+    if (!/^about:blank$/i.test(String(details?.url || ''))) return;
+    try { childWindow.hide(); } catch {}
+
+    const childContents = childWindow.webContents;
+    let forwarded = false;
+
+    const forwardChildUrl = (url) => {
+      if (forwarded || !canOpenInsideCafeDesk(url)) return false;
+      forwarded = sendGuestOpenTab(contents, url, 'about-blank-redirect', {
+        referrer: contents.getURL?.() || ''
+      });
+      if (forwarded) setTimeout(() => {
+        try { if (!childWindow.isDestroyed()) childWindow.close(); } catch {}
+      }, 0);
+      return forwarded;
+    };
+
+    childContents.setWindowOpenHandler((childDetails) => {
+      if (forwardChildUrl(String(childDetails?.url || ''))) return { action: 'deny' };
+      return { action: 'deny' };
+    });
+
+    childContents.on('will-navigate', (event, url) => {
+      if (forwardChildUrl(url)) event.preventDefault();
+    });
+
+    childContents.on('did-navigate', (_event, url) => {
+      forwardChildUrl(url);
+    });
+
+    setTimeout(() => {
+      try { if (!forwarded && !childWindow.isDestroyed()) childWindow.close(); } catch {}
+    }, 20000);
+  });
+
   contents.on('will-navigate', (event, url) => {
-    if (/^https?:/i.test(url) || /^about:blank$/i.test(url)) return;
+    if (/^https?:/i.test(url) || /^about:blank$/i.test(url) || /^blob:https?:/i.test(url) || /^data:application\/pdf/i.test(url)) return;
     event.preventDefault();
     if (/^(mailto|tel):/i.test(url)) shell.openExternal(url).catch(() => {});
   });
@@ -590,9 +673,15 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('print:prepare', async (event, webContentsId) => {
+  ipcMain.handle('print:prepare', async (event, webContentsId, rawOptions) => {
     const guest = getGuestForHost(event, webContentsId);
-    const response = { ok: true, previewDataUrl: '', pageCount: 1, title: guest.getTitle() || '' };
+    const input = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
+    const pageSize = ['A3','A4','A5','Letter','Legal','Tabloid'].includes(input.pageSize) ? input.pageSize : 'A4';
+    const scale = Math.max(0.1, Math.min(2, (Number(input.scaleFactor) || 100) / 100));
+    const pageRanges = String(input.pageRangesText || '').trim();
+    const marginMode = ['default','none','printableArea'].includes(input.marginType) ? input.marginType : 'printableArea';
+    const margin = marginMode === 'none' ? 0 : (marginMode === 'default' ? 0.4 : 0.2);
+    const response = { ok: true, previewDataUrl: '', pageCount: 1, sheetCount: 1, title: guest.getTitle() || '' };
 
     try {
       const image = await guest.capturePage();
@@ -601,8 +690,12 @@ app.whenReady().then(() => {
 
     try {
       const pdf = await guest.printToPDF({
-        printBackground: true,
-        pageSize: 'A4',
+        printBackground: input.printBackground !== false,
+        pageSize,
+        landscape: Boolean(input.landscape),
+        scale,
+        pageRanges,
+        margins: { top: margin, bottom: margin, left: margin, right: margin },
         preferCSSPageSize: false
       });
       const raw = Buffer.from(pdf).toString('latin1');
@@ -610,6 +703,8 @@ app.whenReady().then(() => {
       if (pages?.length) response.pageCount = pages.length;
     } catch {}
 
+    const pps = [1,2,4,6,9,16].includes(Number(input.pagesPerSheet)) ? Number(input.pagesPerSheet) : 1;
+    response.sheetCount = Math.max(1, Math.ceil(response.pageCount / pps));
     return response;
   });
 

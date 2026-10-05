@@ -2042,3 +2042,278 @@ body.workspace-mode .page{
   border:0;
   box-shadow:none;
 }
+
+
+/* ===== CafeDesk 1.0.15: social storage tools, credential manager, smooth print ===== */
+
+.social-left-stack{
+  width:150px;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-self:start;
+  gap:14px;
+}
+.social-left-stack .social-nav{
+  width:100%!important;
+  margin-top:44px!important;
+}
+.social-storage-tools{
+  width:100%;
+  padding:8px;
+  border-radius:17px;
+  background:rgba(255,255,255,.52);
+  border:1px solid rgba(48,97,132,.12);
+  box-shadow:0 10px 25px rgba(39,84,112,.07);
+}
+.social-storage-path{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  margin:0 2px 7px;
+  color:#637d91;
+  font-size:7px;
+  font-weight:700;
+}
+.social-storage-path span:last-child{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.social-storage-status-dot{
+  width:6px;
+  height:6px;
+  flex:none;
+  border-radius:50%;
+  background:#25b884;
+  box-shadow:0 0 0 3px rgba(37,184,132,.11);
+}
+.social-storage-actions{
+  display:grid;
+  gap:7px;
+}
+.social-storage-btn{
+  width:100%;
+  min-height:54px;
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  padding:7px;
+  border-radius:13px;
+  border:1px solid rgba(46,91,127,.12);
+  background:rgba(255,255,255,.82);
+  color:#17314a;
+  text-align:right;
+  box-shadow:0 6px 16px rgba(41,80,110,.07);
+  transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+}
+.social-storage-btn:hover{
+  transform:translateY(-1px);
+  border-color:rgba(28,162,150,.35);
+  box-shadow:0 9px 20px rgba(41,100,120,.12);
+}
+.social-storage-btn>span:last-child{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+.social-storage-btn strong{
+  font-family:"FarTitr","Vazirmatn",sans-serif;
+  font-size:9px;
+}
+.social-storage-btn small{
+  color:#71899d;
+  font-size:6.5px;
+}
+.social-storage-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background:linear-gradient(145deg,#e6fbf6,#dff2ff);
+  color:#1da68f;
+}
+.social-storage-icon.folder{
+  background:linear-gradient(145deg,#fff0d7,#ffe4c1);
+  color:#e88c2f;
+}
+.social-storage-icon svg{
+  width:18px;
+  height:18px;
+  fill:currentColor;
+}
+
+/* Password manager focused on fast national-ID workflows. */
+.password-manager-dialog{width:min(760px,calc(100% - 24px))!important}
+.password-manager-card{
+  background:
+    radial-gradient(circle at 12% 0%,rgba(54,221,205,.09),transparent 32%),
+    linear-gradient(180deg,#101f2d,#0c1722);
+}
+.password-manager-controls{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  margin:10px 0;
+}
+.password-manager-search{
+  height:42px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 11px;
+  border-radius:12px;
+  border:1px solid rgba(110,159,188,.18);
+  background:rgba(255,255,255,.045);
+}
+.password-manager-search>span{color:#64d9cc;font-size:17px}
+.password-manager-search input{
+  flex:1;
+  min-width:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#f0f8ff;
+  font:700 10px/1 "Vazirmatn",sans-serif;
+  text-align:right;
+}
+.password-manager-search input::placeholder{color:#728a9f}
+.password-auto-copy-toggle{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:0 10px;
+  border-radius:12px;
+  background:rgba(75,220,191,.065);
+  border:1px solid rgba(75,220,191,.13);
+  color:#a9c5d4;
+  font-size:8px;
+  white-space:nowrap;
+}
+.password-auto-copy-toggle input{accent-color:#2dc7ad}
+.password-manager-legend{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0 0 10px;
+  padding:7px 9px;
+  border-radius:10px;
+  background:rgba(255,255,255,.025);
+  color:#7892a7;
+  font-size:7.5px;
+}
+.credential-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:20px;
+  padding:0 7px;
+  border-radius:999px;
+  font-size:7px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.credential-chip.eblagh{
+  color:#b9fff1;
+  background:rgba(39,194,164,.13);
+  border:1px solid rgba(39,194,164,.24);
+}
+.password-manager-list{
+  max-height:500px!important;
+  padding-inline-end:3px;
+  scrollbar-gutter:stable;
+}
+.password-manager-row{
+  grid-template-columns:minmax(0,1fr) auto!important;
+  padding:10px 11px!important;
+  background:rgba(255,255,255,.035)!important;
+  transition:border-color .14s ease,background .14s ease,transform .14s ease;
+  cursor:pointer;
+}
+.password-manager-row:hover,.password-manager-row:focus{
+  outline:0;
+  transform:translateY(-1px);
+  background:rgba(255,255,255,.055)!important;
+  border-color:rgba(92,188,178,.24)!important;
+}
+.password-manager-row.eblagh-row{
+  background:linear-gradient(135deg,rgba(37,182,157,.065),rgba(63,112,176,.035))!important;
+  border-color:rgba(51,194,169,.16)!important;
+}
+.password-manager-identity{
+  min-width:0;
+  display:grid!important;
+  gap:4px!important;
+}
+.password-manager-title-line{
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.password-manager-title-line strong{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.password-manager-actions{
+  display:flex!important;
+  align-items:center;
+  gap:5px!important;
+}
+.password-manager-actions button{
+  height:30px!important;
+  padding:0 8px!important;
+  border-radius:8px!important;
+  font:800 7px/1 "Vazirmatn",sans-serif!important;
+}
+.credential-copy-btn{
+  color:#9feadd!important;
+  border-color:rgba(67,202,180,.18)!important;
+  background:rgba(67,202,180,.07)!important;
+}
+.credential-copy-btn.primary{
+  color:#dcecff!important;
+  border-color:rgba(89,149,230,.20)!important;
+  background:rgba(89,149,230,.09)!important;
+}
+.credential-remove-btn{
+  color:#ff9aaa!important;
+  border-color:rgba(255,113,130,.18)!important;
+  background:rgba(255,113,130,.07)!important;
+}
+
+/* Remove print-preview shaking: stable scrollbars, no aspect-ratio animation,
+   and repaint only the preview surface rather than the whole dialog. */
+.print-dialog-shell{
+  contain:layout paint;
+}
+.print-preview-stage{
+  scrollbar-gutter:stable both-edges;
+  contain:layout paint;
+}
+.print-paper-preview{
+  transition:none!important;
+  contain:layout paint;
+}
+.print-preview-grid{
+  contain:layout paint;
+}
+.print-preview-cell img{
+  transition:none!important;
+  backface-visibility:hidden;
+}
+
+@media(max-width:720px){
+  .social-left-stack{width:120px}
+  .social-storage-btn{grid-template-columns:28px minmax(0,1fr);padding:6px}
+  .social-storage-icon{width:27px;height:27px}
+  .password-manager-controls{grid-template-columns:1fr}
+  .password-auto-copy-toggle{white-space:normal}
+}

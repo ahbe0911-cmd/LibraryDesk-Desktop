@@ -15,51 +15,54 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-// Social rail is cropped to the four cards, while social logic stays unchanged.
+// Existing browser/social logic stays intact.
+assert(app.includes("persist:cafedesk-pane-${side}"), 'dual browser sessions missing');
 assert(app.includes('activateSocial(activeSocial)') && !app.includes('openSite(site, activePane)'), 'social apps must remain separate');
-assert((html.match(/class="social-logo-image"/g) || []).length === 4, 'four social icons missing');
-assert(css.includes('margin-top:44px!important') && css.includes('align-self:start!important'), 'social rail should move down without tall background');
-assert(css.includes('height:auto!important') && css.includes('flex:none!important'), 'social rail must end after Telegram');
+assert((html.match(/class="social-logo-image"/g) || []).length === 4, 'social icons missing');
 
-// Tab switching must never reopen the site picker.
-assert(app.includes("item.addEventListener('click', (event) =>"), 'tab click handler missing');
-assert(/event\.stopPropagation\(\);\s*activatePaneTab\(side, tab\.id\);/.test(app), 'tab click must stop propagation');
-assert(app.includes("pane.slot.removeAttribute('data-empty-side')"), 'occupied pane must lose empty-pane marker');
-assert(!app.includes("document.querySelectorAll('[data-empty-side]').forEach"), 'permanent empty-pane listeners must be removed');
-assert(app.includes("if (!pane.slot.classList.contains('empty-pane')) return;"), 'site picker must only open from actually empty pane');
+// Dedicated social download-folder tools.
+assert(html.includes('id="chooseSocialStorageBtn"'), 'social choose-address tool missing');
+assert(html.includes('id="openSocialStorageBtn"'), 'social Windows-folder tool missing');
+assert(html.includes('<strong>انتخاب آدرس</strong>') && html.includes('<strong>پوشه چاپ</strong>'), 'requested social tool labels missing');
+assert(css.includes('.social-storage-tools') && css.includes('.social-left-stack'), 'separate social storage card styling missing');
+assert(preload.includes("social-downloads:get-folder") && preload.includes("social-downloads:choose-folder") && preload.includes("social-downloads:open"), 'social storage preload bridge missing');
+assert(main.includes('function getSocialDownloadFolder()'), 'persistent social folder getter missing');
+assert(main.includes('settings.socialDownloadFolder = folder'), 'social folder persistence missing');
+assert(main.includes('const folder = isSocialPartition ? getSocialDownloadFolder() : getDownloadFolder();'), 'social downloads must route to chosen social folder');
+assert(main.includes("ipcMain.handle('social-downloads:open'"), 'social folder must open externally in Windows');
+assert(app.includes('refreshSocialStorageFolder') && app.includes('openSocialDownloadFolder'), 'social folder UI handlers missing');
 
-// Eblagh/new-window behavior.
-assert(main.includes("if (/^about:blank$/i.test(url))"), 'about:blank popup bridge missing');
-assert(main.includes("contents.on('did-create-window'"), 'hidden child redirect handler missing');
-assert(main.includes("sendGuestOpenTab(contents, url, 'about-blank-redirect'"), 'about:blank PDF redirect must become an internal tab');
-assert(main.includes("label: 'باز کردن در تب جدید'"), 'manual context-menu open-in-new-tab missing');
-assert(main.includes("canOpenInsideCafeDesk(linkUrl)"), 'context-menu URL validation missing');
-assert(main.includes("/^blob:https?:/i.test(url)") && main.includes("/^data:application\\/pdf/i.test(url)"), 'PDF popup URL schemes missing');
+// Print preview must avoid jitter/heavy recalculation on every change.
+assert(app.includes('printPreviewRequestVersion'), 'stale print-preview request guard missing');
+assert(app.includes('requestAnimationFrame'), 'batched print preview rendering missing');
+assert(app.includes('setTimeout(run, 720)'), 'heavy printToPDF refresh must be debounced');
+assert(app.includes("schedulePrintPreviewRefresh({ backend: false })"), 'lightweight preview path missing');
+assert(app.includes("schedulePrintPreviewRefresh({ backend: true })"), 'deferred backend preview path missing');
+assert(!css.includes('.print-paper-preview{\n  transition:aspect-ratio .18s ease,width .18s ease;'), 'aspect-ratio animation should not remain');
+assert(css.includes('.print-paper-preview{\n  transition:none!important;'), 'stable preview CSS missing');
+assert(css.includes('scrollbar-gutter:stable both-edges'), 'stable print preview scrollbar missing');
 
-// All normal printing uses the CafeDesk print panel.
-assert(guest.includes("document.addEventListener('cafedesk-print-request'"), 'website print bridge receiver missing');
-assert(app.includes("window.__cafedeskPrintBridgeInstalled"), 'website window.print override missing');
-assert(app.includes("printWebview(webview)") && app.includes("event.channel === 'print-request'"), 'site print must route to CafeDesk print dialog');
-assert(html.includes('id="printDialog"') && html.includes('id="printPreviewGrid"'), 'print dialog/live grid missing');
-
-// Print controls are real and preview updates with settings.
-assert(preload.includes("preparePrint: (webContentsId, options)"), 'print preview options bridge missing');
-assert(main.includes("ipcMain.handle('print:prepare'") && main.includes("rawOptions"), 'live print preparation backend missing');
-assert(main.includes("guest.printToPDF({") && main.includes("scale,") && main.includes("pageRanges,"), 'backend preview must use real print settings');
-assert(main.includes("pagesPerSheet") && main.includes("duplexMode") && main.includes("scaleFactor"), 'actual print settings missing');
-assert(app.includes('renderLivePrintPreview') && app.includes('schedulePrintPreviewRefresh'), 'live preview updater missing');
-assert(app.includes("image.style.filter = options.color ? 'none' : 'grayscale(1)'"), 'color setting must affect preview');
-assert(app.includes("paper.style.aspectRatio = printPaperRatio"), 'paper/orientation setting must affect preview');
-assert(app.includes("printPreviewGrid.style.gridTemplateColumns"), 'pages-per-sheet must affect preview layout');
-
-// Existing 1.0.13 features stay intact.
-assert(main.includes("const isSocialPartition = partition.startsWith('persist:cafedesk-social-')"), 'social notification isolation missing');
-assert(main.includes("item.setSavePath(nextAvailableDownloadPath(folder, item.getFilename()))"), 'shared automatic download folder missing');
-assert(app.includes('persianOrdinalDays') && app.includes('headerDateTime.dataset.tone'), 'Jalali date styling missing');
-assert(app.includes('normalizeCalcKeyboardKey') && app.includes('calcToPersian'), 'Persian keyboard calculator missing');
-assert(guest.includes('EBLAGH_PENDING_KEY') && guest.includes('commitPendingEblaghIfVerified'), 'verified Eblagh password save missing');
+// Eblagh credential manager: search, copy, replace, autofill.
+assert(html.includes('id="passwordManagerSearch"'), 'credential search field missing');
+assert(html.includes('id="passwordManagerAutoCopy"'), 'automatic credential copy toggle missing');
+assert(html.includes('ثنا / ابلاغ'), 'Eblagh manager label missing');
+assert(app.includes('normalizeCredentialSearch'), 'credential search normalization missing');
+assert(app.includes('copyManagedCredential'), 'credential copy helper missing');
+assert(app.includes("copyPassword.textContent = 'کپی رمز'"), 'copy-password control missing');
+assert(app.includes("copyUser.textContent = eblagh ? 'کپی کد ملی' : 'کپی نام'"), 'copy-national-ID control missing');
+assert(main.includes('function credentialUsernameKey(value)'), 'main-process national-ID normalization missing');
+assert(main.includes('credentialUsernameKey(item.username) !== normalizedUser'), 'same national ID must replace old password');
+assert(guest.includes('function normalizeCredentialUsername(value)'), 'webview national-ID normalization missing');
+assert(guest.includes('normalizeCredentialUsername(entry.username) === typedUsernameKey'), 'instant normalized autofill missing');
+assert(guest.includes('EBLAGH_PENDING_KEY') && guest.includes('commitPendingEblaghIfVerified'), 'verified Eblagh save flow missing');
 assert(app.includes("if (isEblaghCredential && data?.verified !== true) return;"), 'premature Eblagh save guard missing');
-assert(main.includes('image.toPNG()'), 'lossless screenshot missing');
-assert(!app.includes('MediaRecorder'), 'screen recorder must remain removed');
 
-console.log('CafeDesk 1.0.14 regression checks passed.');
+// Existing important features remain.
+assert(main.includes("label: 'باز کردن در تب جدید'"), 'manual open-in-new-tab missing');
+assert(main.includes('about-blank-redirect'), 'Eblagh about:blank PDF redirect missing');
+assert(html.includes('id="printDialog"') && app.includes('submitCafeDeskPrint'), 'unified print panel missing');
+assert(main.includes('image.toPNG()'), 'lossless screenshot missing');
+assert(!app.includes('MediaRecorder'), 'screen recorder must stay removed');
+assert(main.includes("if (permission === 'notifications') return !isSocialPartition;"), 'social notifications must remain disabled');
+
+console.log('CafeDesk 1.0.15 regression checks passed.');

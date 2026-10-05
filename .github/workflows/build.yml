@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.18
+name: Build LibraryDesk Desktop 1.0.19
 
 on:
   push:
@@ -113,6 +113,26 @@ jobs:
           $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
           if ($pkg.version -ne "1.0.18") { throw "1.0.18 version update failed" }
 
+      - name: Apply 1.0.19 UI refinement
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.19.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.19.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.19.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.19 UI patch failed" }
+          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.19") { throw "1.0.19 version update failed" }
+          $mainUi = Get-Content "build-src\app\newtab.html" -Raw
+          $viewerUi = Get-Content "build-src\app\viewer.html" -Raw
+          $appJs = Get-Content "build-src\app\app.js" -Raw
+          if ($mainUi -notmatch 'loanChangeModal' -or $mainUi -notmatch 'loanAddBtn') { throw "Overdue-loan modal UI missing" }
+          if ($viewerUi -notmatch 'viewerThemeBtn') { throw "Viewer theme control missing" }
+          if ($appJs -notmatch 'validIranNationalId') { throw "National ID validation missing" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -145,13 +165,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.18-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.18-Win10-x64.exe
+          name: LibraryDesk-1.0.19-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.19-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.18-Portable-Win10-x64
+          name: LibraryDesk-1.0.19-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

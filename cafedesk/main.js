@@ -582,13 +582,13 @@ app.whenReady().then(() => {
   ipcMain.handle('capture:export-page', async (event, webContentsId, label) => {
     const guest = getGuestForHost(event, webContentsId);
     const stem = `${cleanFileStem(label, 'CafeDesk-Screenshot')}-${timestampForFile()}`;
-    const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.jpg`);
+    const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.png`);
 
     const image = await guest.capturePage();
     if (!image || image.isEmpty()) throw new Error('تصویر صفحه در دسترس نیست.');
-    fs.writeFileSync(target, image.toJPEG(100));
+    fs.writeFileSync(target, image.toPNG());
 
-    return { ok: true, format: 'jpg', path: target, label: path.basename(target) };
+    return { ok: true, format: 'png', path: target, label: path.basename(target) };
   });
 
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {

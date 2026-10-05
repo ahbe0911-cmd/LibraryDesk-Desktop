@@ -1805,3 +1805,180 @@ body.workspace-mode .page{
   transform:scale(1.04);
   box-shadow:0 6px 18px rgba(8,20,34,.22)!important;
 }
+
+
+/* ===== CafeDesk 1.0.13 polish: social alignment, colorful date, Chrome-like print, RTL calculator ===== */
+
+/* Lower the social selector column so it visually aligns with the phone screen. */
+.social-dialog:not(.folder-mode) .social-nav{
+  padding:52px 6px 6px!important;
+  justify-content:flex-start!important;
+}
+.social-dialog:not(.folder-mode) .social-nav-btn{
+  min-height:64px!important;
+  border-radius:17px!important;
+}
+.social-badge{
+  width:42px!important;
+  height:42px!important;
+  border-radius:13px!important;
+  flex:none;
+}
+
+/* Date/time card: each Jalali day gets a different accent tone. */
+.header-datetime{
+  --date-accent:#64e3d4;
+  position:relative;
+  overflow:hidden;
+  border-color:color-mix(in srgb,var(--date-accent) 34%,transparent)!important;
+  background:
+    radial-gradient(circle at 10% 20%,color-mix(in srgb,var(--date-accent) 15%,transparent),transparent 42%),
+    rgba(255,255,255,.035)!important;
+}
+.header-datetime::before{
+  content:"";
+  width:5px;
+  align-self:stretch;
+  border-radius:999px;
+  background:var(--date-accent);
+  box-shadow:0 0 18px color-mix(in srgb,var(--date-accent) 60%,transparent);
+}
+.header-datetime[data-tone="0"]{--date-accent:#61e7d8}
+.header-datetime[data-tone="1"]{--date-accent:#76a7ff}
+.header-datetime[data-tone="2"]{--date-accent:#d38cff}
+.header-datetime[data-tone="3"]{--date-accent:#ff87b6}
+.header-datetime[data-tone="4"]{--date-accent:#ffc368}
+.header-datetime[data-tone="5"]{--date-accent:#93dc60}
+.header-datetime[data-tone="6"]{--date-accent:#5fd0ff}
+.header-datetime strong{color:#f7fdff!important}
+.header-datetime span{color:color-mix(in srgb,var(--date-accent) 72%,#ffffff)!important}
+
+/* Calculator */
+.tool.calculator{direction:rtl}
+.calc-display{
+  direction:ltr!important;
+  text-align:right!important;
+  font-family:"Vazirmatn",sans-serif!important;
+  font-size:26px!important;
+  font-weight:800!important;
+  letter-spacing:.5px;
+  padding-inline:12px!important;
+}
+.calc-keys{direction:ltr}
+.calc-keys button{
+  font-family:"Vazirmatn",sans-serif!important;
+  font-weight:800!important;
+  font-size:14px!important;
+}
+.calc-keys button[data-calc="C"]{font-size:10px!important}
+.tool.calculator::after{
+  content:"کیبورد فعال است: ۰–۹، +، −، ×، ÷، Enter و Backspace";
+  display:block;
+  margin-top:8px;
+  color:#7892a8;
+  font-size:7px;
+  text-align:right;
+}
+
+/* Chrome-inspired print surface */
+.print-dialog{
+  width:min(1180px,calc(100vw - 22px));
+  height:min(820px,calc(100vh - 22px));
+  max-width:none;
+  padding:0;
+  border:0;
+  border-radius:18px;
+  background:#eef1f4;
+  color:#1f2937;
+  box-shadow:0 30px 80px rgba(0,0,0,.38);
+  overflow:hidden;
+}
+.print-dialog::backdrop{background:rgba(1,8,18,.72);backdrop-filter:blur(4px)}
+.print-dialog-shell{
+  width:100%;height:100%;display:grid;
+  grid-template-columns:minmax(0,1fr) 390px;
+  direction:ltr;
+}
+.print-preview-side{
+  min-width:0;display:flex;flex-direction:column;background:#e7eaee;
+}
+.print-preview-toolbar{
+  height:56px;flex:none;padding:0 22px;display:flex;align-items:center;justify-content:space-between;
+  color:#475569;background:#f4f6f8;border-bottom:1px solid #d8dde3;
+  font:700 11px/1.2 "Vazirmatn",sans-serif;
+}
+.print-preview-toolbar span{font-weight:600;color:#7c8794}
+.print-preview-stage{
+  flex:1;min-height:0;overflow:auto;padding:32px;display:grid;place-items:start center;
+}
+.print-paper-preview{
+  position:relative;width:min(620px,94%);aspect-ratio:210/297;
+  background:white;border-radius:2px;overflow:hidden;
+  box-shadow:0 10px 28px rgba(40,50,64,.22);
+}
+.print-paper-preview img{
+  width:100%;height:100%;object-fit:contain;object-position:top center;display:none;background:#fff;
+}
+.print-paper-preview.ready img{display:block}
+.print-preview-placeholder{
+  position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:12px;color:#7c8794;
+}
+.print-paper-preview.ready .print-preview-placeholder{display:none}
+.print-preview-spinner{
+  width:30px;height:30px;border-radius:50%;border:3px solid #d7dde3;border-top-color:#1a73e8;
+  animation:printSpin .75s linear infinite;
+}
+@keyframes printSpin{to{transform:rotate(360deg)}}
+
+.print-settings-side{
+  direction:rtl;background:#fff;border-left:1px solid #dfe3e7;
+  padding:20px 24px 18px;overflow:auto;
+  font-family:"Vazirmatn",sans-serif;
+}
+.print-settings-head{
+  display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;
+}
+.print-settings-head>div{display:grid;gap:4px}
+.print-settings-head span{font-size:22px;font-weight:800;color:#1f2937}
+.print-settings-head small{font-size:8px;color:#8a96a3;max-width:285px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.print-settings-head button{
+  width:31px;height:31px;border:0;border-radius:50%;background:#f1f3f4;color:#56616d;font-size:20px;
+}
+.print-field{
+  min-height:54px;display:grid;grid-template-columns:108px minmax(0,1fr);align-items:center;gap:10px;
+  border-bottom:1px solid #f0f1f3;
+}
+.print-field>span{font-size:10px;font-weight:700;color:#4d5965}
+.print-field select,.print-field input{
+  width:100%;height:36px;border:1px solid #d7dce1;border-radius:9px;background:#fff;color:#26323d;
+  padding:0 10px;font-family:"Vazirmatn",sans-serif;font-size:10px;outline:none;
+}
+.print-field select:focus,.print-field input:focus{border-color:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,.10)}
+.print-more-title{
+  height:48px;margin:9px -24px 0;padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  background:#f3f4f5;color:#46515d;border-block:1px solid #e7e9ec;
+  font-size:11px;
+}
+.print-check-row{
+  min-height:50px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f0f1f3;
+  font-size:10px;font-weight:700;color:#4d5965;
+}
+.print-check-row input{width:17px;height:17px;accent-color:#1a73e8}
+.print-sub-field{padding-inline-start:18px}
+.print-action-row{display:flex;gap:8px;margin-top:18px}
+.print-primary-btn,.print-secondary-btn{
+  height:38px;border-radius:20px;padding:0 22px;font:800 10px/1 "Vazirmatn",sans-serif;
+}
+.print-primary-btn{border:0;background:#1a73e8;color:#fff;box-shadow:0 5px 15px rgba(26,115,232,.24)}
+.print-secondary-btn{border:1px solid #d1d6dc;background:#fff;color:#52606d}
+.print-system-link{
+  width:100%;margin-top:12px;border:0;background:transparent;color:#3f5164;text-align:right;
+  font:700 9px/1.5 "Vazirmatn",sans-serif;padding:8px 2px;
+}
+.print-system-link:hover{color:#1a73e8}
+
+@media(max-width:900px){
+  .print-dialog-shell{grid-template-columns:1fr}
+  .print-preview-side{display:none}
+  .print-settings-side{border:0}
+}

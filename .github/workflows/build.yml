@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.23
+name: Build LibraryDesk Desktop 1.0.24
 
 on:
   push:
@@ -226,6 +226,34 @@ jobs:
           if ($mainJs -notmatch "settings\.html") { throw "Settings navigation fix missing" }
           if ($styles -notmatch "LibraryDesk 1.0.23") { throw "1.0.23 visual styles missing" }
 
+      - name: Apply 1.0.24 clock, Eitaa and calendar update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.24.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.24.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.24.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.24 patch failed" }
+          $pkgPath = "build-src\package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = "1.0.24"
+          $pkg.description = "LibraryDesk Windows — silver reference analog clock, Eitaa quick access, centered controls and calendar Today shortcut"
+          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.24") { throw "1.0.24 version update failed" }
+          $mainUi = Get-Content "build-src\app\newtab.html" -Raw
+          $appJs = Get-Content "build-src\app\app.js" -Raw
+          $viewerJs = Get-Content "build-src\app\viewer.js" -Raw
+          $styles = Get-Content "build-src\app\styles.css" -Raw
+          if ($mainUi -notmatch 'calendarTodayBtn' -or $mainUi -notmatch 'webapp-eitaa') { throw "Today/Eitaa UI missing" }
+          if ($appJs -notmatch 'goCalendarToday') { throw "Calendar Today logic missing" }
+          if ($viewerJs -notmatch 'web\.eitaa\.com') { throw "Eitaa viewer compatibility missing" }
+          if ($styles -notmatch 'LibraryDesk 1.0.24') { throw "1.0.24 visual styles missing" }
+          if (!(Test-Path "build-src\app\assets\clock-reference.jpg")) { throw "Clock reference asset missing" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -258,13 +286,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.23-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.23-Win10-x64.exe
+          name: LibraryDesk-1.0.24-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.24-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.23-Portable-Win10-x64
+          name: LibraryDesk-1.0.24-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

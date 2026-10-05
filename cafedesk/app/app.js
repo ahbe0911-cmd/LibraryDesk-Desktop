@@ -92,6 +92,7 @@
   const printDuplexEdge = $('printDuplexEdge');
   const printMargins = $('printMargins');
   const printPreviewImage = $('printPreviewImage');
+  const printPreviewGrid = $('printPreviewGrid');
   const printPreviewPlaceholder = $('printPreviewPlaceholder');
   const printSheetCount = $('printSheetCount');
   const printDocumentTitle = $('printDocumentTitle');
@@ -463,6 +464,84 @@
 
   let printTargetWebview = null;
   let printTargetId = 0;
+  let printPreviewDataUrl = '';
+  let printPreviewRefreshTimer = null;
+
+  function currentPrintUiOptions() {
+    return {
+      pageRangesText: printPagesMode?.value === 'custom' ? String(printCustomPages?.value || '').trim() : '',
+      copies: Number(printCopies?.value || 1),
+      pageSize: printPaperSize?.value || 'A4',
+      pagesPerSheet: Number(printPagesPerSheet?.value || 1),
+      scaleFactor: Number(printScale?.value || 100),
+      color: printColor?.value !== 'gray',
+      landscape: printOrientation?.value === 'landscape',
+      duplexMode: printDuplex?.checked ? (printDuplexEdge?.value || 'longEdge') : 'simplex',
+      marginType: printMargins?.value || 'printableArea',
+      printBackground: true
+    };
+  }
+
+  function printPaperRatio(pageSize, landscape) {
+    const ratios = { A3:[297,420], A4:[210,297], A5:[148,210], Letter:[8.5,11], Legal:[8.5,14], Tabloid:[11,17] };
+    const pair = ratios[pageSize] || ratios.A4;
+    const width = landscape ? pair[1] : pair[0];
+    const height = landscape ? pair[0] : pair[1];
+    return width + ' / ' + height;
+  }
+
+  function renderLivePrintPreview() {
+    const paper = printPreviewGrid?.closest('.print-paper-preview');
+    if (!paper || !printPreviewGrid) return;
+    const options = currentPrintUiOptions();
+    const pps = [1,2,4,6,9,16].includes(options.pagesPerSheet) ? options.pagesPerSheet : 1;
+    const layouts = { 1:[1,1], 2:[2,1], 4:[2,2], 6:[2,3], 9:[3,3], 16:[4,4] };
+    const layout = layouts[pps] || [1,1];
+    paper.style.aspectRatio = printPaperRatio(options.pageSize, options.landscape);
+    paper.dataset.pagesPerSheet = String(pps);
+    const marginPx = options.marginType === 'none' ? 0 : (options.marginType === 'default' ? 18 : 10);
+    printPreviewGrid.style.padding = marginPx + 'px';
+    printPreviewGrid.style.gridTemplateColumns = 'repeat(' + layout[0] + ', minmax(0, 1fr))';
+    printPreviewGrid.style.gridTemplateRows = 'repeat(' + layout[1] + ', minmax(0, 1fr))';
+    printPreviewGrid.replaceChildren();
+    for (let index = 0; index < pps; index += 1) {
+      const cell = document.createElement('div');
+      cell.className = 'print-preview-cell';
+      const image = document.createElement('img');
+      image.alt = index === 0 ? 'پیش‌نمایش صفحه برای چاپ' : '';
+      image.src = printPreviewDataUrl || '';
+      image.style.filter = options.color ? 'none' : 'grayscale(1)';
+      image.style.transform = 'scale(' + Math.max(.1, Math.min(2, options.scaleFactor / 100)) + ')';
+      image.style.transformOrigin = 'top center';
+      cell.append(image);
+      printPreviewGrid.append(cell);
+    }
+    paper.classList.toggle('ready', Boolean(printPreviewDataUrl));
+  }
+
+  async function refreshPrintPreviewFromBackend(immediate = false) {
+    clearTimeout(printPreviewRefreshTimer);
+    const run = async () => {
+      if (!printTargetId || !printDialog?.open) return;
+      try {
+        const preview = await window.cafeDesk.preparePrint(printTargetId, currentPrintUiOptions());
+        if (!preview || !printDialog.open || !printTargetId) return;
+        if (preview.previewDataUrl) printPreviewDataUrl = preview.previewDataUrl;
+        renderLivePrintPreview();
+        const pages = Math.max(1, Number(preview.pageCount) || 1);
+        const sheets = Math.max(1, Number(preview.sheetCount) || 1);
+        if (printSheetCount) printSheetCount.textContent = faNumber(pages) + ' صفحه • ' + faNumber(sheets) + ' برگ';
+        if (printDocumentTitle && preview.title) printDocumentTitle.textContent = preview.title;
+      } catch {}
+    };
+    if (immediate) await run();
+    else printPreviewRefreshTimer = setTimeout(run, 240);
+  }
+
+  function schedulePrintPreviewRefresh() {
+    renderLivePrintPreview();
+    refreshPrintPreviewFromBackend(false);
+  }
 
   function parsePrintRanges(value) {
     const raw = String(value || '').trim();

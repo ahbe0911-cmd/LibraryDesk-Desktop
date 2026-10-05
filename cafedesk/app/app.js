@@ -174,6 +174,24 @@
     paneToastTimers[side] = setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
+  let socialToastTimer = null;
+  function showSocialToast(message, type = 'success') {
+    const phone = document.querySelector('.iphone18-screen') || socialBrowserPanel;
+    if (!phone) return showToast(message, type);
+    let toast = phone.querySelector('.social-phone-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'social-phone-toast';
+      toast.setAttribute('role', 'status');
+      phone.append(toast);
+    }
+    clearTimeout(socialToastTimer);
+    toast.textContent = String(message || '');
+    toast.classList.toggle('error', type === 'error');
+    toast.classList.add('show');
+    socialToastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
   function loadSites() {
     try {
       const parsed = JSON.parse(localStorage.getItem(SITES_KEY) || '[]');
@@ -346,12 +364,13 @@
 
   function renderPicker() {
     const query = pickerSearchInput.value;
-    const socialSites = Object.values(socialApps);
-    const available = [...socialSites, ...sites];
-    const filtered = available.filter((site) => matchesSearch(site, query));
+    const filtered = sites.filter((site) => matchesSearch(site, query));
 
     pickerSitesGrid.replaceChildren();
-    filtered.forEach((site, index) => pickerSitesGrid.appendChild(createPickerCard(site, index)));
+    filtered.forEach((site) => {
+      const originalIndex = sites.findIndex((item) => item.id === site.id);
+      pickerSitesGrid.appendChild(createPickerCard(site, Math.max(0, originalIndex)));
+    });
     pickerEmpty.classList.toggle('hidden', filtered.length > 0);
   }
 
@@ -492,8 +511,14 @@
       const result = await window.cafeDesk.saveCredential({ url, username, password });
       if (!result?.ok && result?.message) alert(result.message);
       if (result?.ok) {
-        if (side) showPaneToast(side, '✓ اطلاعات ورود ذخیره شد', 'success');
-        else showToast('✓ اطلاعات ورود ذخیره شد', 'success');
+        if (side) {
+          showPaneToast(side, '✓ اطلاعات ورود ذخیره شد', 'success');
+        } else {
+          let isSocial = false;
+          try { isSocial = Boolean(socialViewByWebContentsId(webview.getWebContentsId())); } catch {}
+          if (isSocial) showSocialToast('✓ اطلاعات ورود ذخیره شد', 'success');
+          else showToast('✓ اطلاعات ورود ذخیره شد', 'success');
+        }
       }
       await syncSavedCredentials(webview);
       await refreshPasswordManager();
@@ -637,15 +662,34 @@
       option.textContent = faNumber(value) + '٪';
       zoomSelect.append(option);
     });
+
+    const persistZoom = (value) => {
+      const percent = saveSiteZoom(site, value);
+      zoomSelect.value = String(percent);
+      applySiteZoom(webview, percent);
+      return percent;
+    };
+
     zoomSelect.value = String(getSiteZoom(site));
     zoomSelect.addEventListener('click', (event) => event.stopPropagation());
     zoomSelect.addEventListener('change', (event) => {
       event.stopPropagation();
-      const percent = saveSiteZoom(site, zoomSelect.value);
-      zoomSelect.value = String(percent);
-      applySiteZoom(webview, percent);
+      persistZoom(zoomSelect.value);
     });
-    zoomWrap.append(zoomLabel, zoomSelect);
+
+    const zoomOut = makePaneButton('−', 'کوچک‌تر و ذخیره زوم', () => {
+      const current = getSiteZoom(site);
+      persistZoom(Math.max(60, current - 5));
+    });
+    zoomOut.classList.add('zoom-step-btn');
+
+    const zoomIn = makePaneButton('+', 'بزرگ‌تر و ذخیره زوم', () => {
+      const current = getSiteZoom(site);
+      persistZoom(Math.min(150, current + 5));
+    });
+    zoomIn.classList.add('zoom-step-btn');
+
+    zoomWrap.append(zoomOut, zoomLabel, zoomSelect, zoomIn);
 
     const change = makePaneButton('تغییر سایت', 'انتخاب سایت دیگر', () => openSitePicker(side));
     change.classList.add('change-site-btn');
@@ -828,6 +872,9 @@
   function openSite(site, side) {
     const pane = panes[side];
     if (!pane) return;
+
+    const otherSide = side === 'right' ? 'left' : 'right';
+    if (panes[otherSide]?.webview) closePane(otherSide);
 
     (pane.tabs || []).forEach((tab) => {
       try { tab.webview.remove(); } catch {}
@@ -1491,9 +1538,11 @@
   openSocialBtn.addEventListener('click', () => {
     socialDialog.showModal();
     leavePrintFolderMode();
-    socialBrowserPanel?.classList.add('hidden');
-    socialTitle.textContent = activePane === 'right' ? 'انتخاب برای مرورگر راست' : 'انتخاب برای مرورگر چپ';
-    document.querySelectorAll('[data-social]').forEach((button) => button.classList.remove('active'));
+    socialBrowserPanel?.classList.remove('hidden');
+    activateSocial(activeSocial);
+    setTimeout(() => {
+      if (socialDialog.open) prewarmSocialViews();
+    }, 850);
   });
 
   closeSocialBtn.addEventListener('click', () => socialDialog.close());
@@ -1516,27 +1565,24 @@
   });
 
   document.querySelectorAll('[data-social]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const key = button.dataset.social;
-      const site = socialApps[key];
-      if (!site) return;
-      openSite(site, activePane);
-      socialDialog.close();
-    });
+    button.addEventListener('click', () => activateSocial(button.dataset.social));
   });
 
   window.cafeDesk.onDownloadStatus?.((payload) => {
     if (!payload) return;
     const paneMatch = tabByWebContentsId(payload.sourceId);
     const paneSide = paneMatch?.side || null;
+    const socialMatch = socialViewByWebContentsId(payload.sourceId);
     if (payload.state === 'completed') {
       const message = '✓ ذخیره شد: ' + (payload.filename || 'فایل');
       if (paneSide) showPaneToast(paneSide, message, 'success');
+      else if (socialMatch) showSocialToast(message, 'success');
       else showToast(message, 'success');
       if (socialDialog?.classList.contains('folder-mode')) loadPrintFolder(currentPrintFolderPath || '');
     } else if (payload.state === 'interrupted') {
       const message = 'ذخیره فایل کامل نشد: ' + (payload.filename || 'فایل');
       if (paneSide) showPaneToast(paneSide, message, 'error');
+      else if (socialMatch) showSocialToast(message, 'error');
       else showToast(message, 'error');
     }
   });

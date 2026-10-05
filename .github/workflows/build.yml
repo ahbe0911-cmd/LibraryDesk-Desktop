@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.20
+name: Build LibraryDesk Desktop 1.0.21
 
 on:
   push:
@@ -166,6 +166,28 @@ jobs:
           if ($viewerJs -notmatch 'improveActiveLoad') { throw "Load recovery action missing" }
           if ($appJs -notmatch 'loan-national-copy') { throw "Copyable national-id card missing" }
 
+      - name: Apply 1.0.21 clock visual update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.21.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.21.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.21.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.21 clock visual patch failed" }
+          $pkgPath = "build-src\package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = "1.0.21"
+          $pkg.description = "LibraryDesk Windows — 1.0.20 unchanged except luxury wooden analog clock styling and bolder date"
+          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.21") { throw "1.0.21 version update failed" }
+          $styles = Get-Content "build-src\app\styles.css" -Raw
+          if ($styles -notmatch 'LibraryDesk 1.0.21 — luxury wooden analog clock') { throw "1.0.21 clock styles missing" }
+          if ($styles -notmatch '#dateLine') { throw "Bold date style missing" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -198,13 +220,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.20-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.20-Win10-x64.exe
+          name: LibraryDesk-1.0.21-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.21-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.20-Portable-Win10-x64
+          name: LibraryDesk-1.0.21-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

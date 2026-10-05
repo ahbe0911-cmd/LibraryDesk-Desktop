@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.14</span>
+      <span class="version" id="versionText">v1.0.15</span>
     </div>
 
     <div class="header-datetime" aria-live="polite">
@@ -385,7 +385,24 @@
         </div>
         <button id="closePasswordManagerBtn" class="dialog-close" type="button">×</button>
       </div>
-      <p class="password-manager-note">برای هر سایت می‌توان چند حساب ذخیره کرد. رمزها به‌صورت رمزگذاری‌شده در حساب ویندوز نگهداری می‌شوند.</p>
+      <p class="password-manager-note">حساب‌های ابلاغ فقط بعد از تأیید ورود ذخیره می‌شوند. اگر رمز همان کد ملی تغییر کند، رمز جدید جایگزین قبلی می‌شود.</p>
+
+      <div class="password-manager-controls">
+        <label class="password-manager-search">
+          <span>⌕</span>
+          <input id="passwordManagerSearch" type="search" autocomplete="off" inputmode="numeric" placeholder="جستجو بر اساس کد ملی یا سایت..." />
+        </label>
+        <label class="password-auto-copy-toggle">
+          <input id="passwordManagerAutoCopy" type="checkbox" checked />
+          <span>با کلیک روی حساب، رمز خودکار کپی شود</span>
+        </label>
+      </div>
+
+      <div class="password-manager-legend">
+        <span class="credential-chip eblagh">ثنا / ابلاغ</span>
+        <span>تکمیل خودکار رمز با وارد کردن کد ملی فعال است.</span>
+      </div>
+
       <div id="passwordManagerList" class="password-manager-list"></div>
     </div>
   </dialog>
@@ -401,7 +418,8 @@
       </div>
 
       <div class="social-layout">
-        <nav class="social-nav" aria-label="شبکه‌های اجتماعی">
+        <div class="social-left-stack">
+          <nav class="social-nav" aria-label="شبکه‌های اجتماعی">
           <button class="social-nav-btn active" data-social="rubika" type="button">
             <span class="social-badge rubika"><img class="social-logo-image" src="data:image/webp;base64,UklGRpYFAABXRUJQVlA4IIoFAADQHgCdASpgAGAAPjkWiUMiISEarAYAIAOEtgBndQmgB/QPxr9kCufzT71fkFmLvjf6R+Y+ot5gH6a/1z+Z/iz8IH6Ae6/zKfr56wH4ge6D/OeoB/Zeoe9ADy0v2z+Dj9s/2m9pvNR54h99fznCftD/4De2uSf0+1TTP/Hj9VewN+sX++UrPsJsc5fojFFOY7THPUqGFH/Llebe/tZX+wZkAqHkGeM3MBswejodqVFeBkv55ZHzneJ+MLrpSA0zQAQh2LVVaUXDN4QpJgVeqjQ76JXy4f5j8c29lV+ZzuW39djh2mBbephLeHi3AaT0AcwHaOdY8xrF7QR/7iVVmAAA/v7deBQVtIcmeYOuieWTNSnFy2L+dUIyiq1vPIXqB/mcsZ6p9I0Y/x42Tg16230As086xAPWqUu6URkvt8t9mwB4yfgBWXDS4dIslAoEY1g/4/lGVJR+wSoilU2P9SYmACxV7QwnsWdf6G+qJT8R/3hOlLNp+Ltu2Oe/OYlDrT5VRzlxg7ZHimiMZeNiE8dtRNIZBEYyLZtHRfz7H/s+cZAzf4LXT67YX1relJo79ejARMESXa3PT+xMEdhJvx3GNutVNxnf6k6uuk13M5KTAncWweafQT0FMx38nadIsv0elIohys/BMrw6ub9hUc2p9WMMaB4ouvT/KWeziNidamFYIzhC8PCKDZc7t3V0QImmvdr6YqN53b+C4WWwleB4GVXunCSVzQU8K6AVselJcEzInFAMCjTlTMSFIgM/Ue2lRe0a2sFrjCMfBfEbl7kDo2ulF/71aGSVKSPoFtKsuR7zerfCYr3/1+eLnf7Sk5r5Zj3RzaGrArwMa7/8lWek1unkHtn2pNPr+TJYcL99heBpSu+ZWTchVUp7rxb57pkD/OXi1tP3js9TVgyTDKY4BGthyHzTVzCwTdjyXv6lW99n3riFjkrsDQF3NxJhi+4XfNIotkNtGTa9qE0p9XIeuuOkXynDt+Wnyk71LKbYr3RK+8oXuG7mEJZTMFeDktxTggHh+5/0bE5BU+411Q/9bYk0u+2TqpOU2fxEFAkyc4lP5v+cq4NBjUId25m+QUX3ZPNQM65Zo4N1kHUpIwNlFMQpmbbSjH3LixaCBCetbJRF/Y/kVG5hxtEd6riUNXfqIfn74+562X+iN7H5GPNIeMqjwiPoz1VMwW1NnFFT3+bA7tibqDUauEc2bActHc1/mP4/bFkFALJe/ikBCbug2x1ub6TPe241GY4q26EWUdK6sTh9ur1XeWNeLJLOumfNOfNiJAO0FTQ0fAmZysIzk4mKmxRjpJ7LxNffx6k57fkfSL02zhyuSi34NoUR/n1cCN13/SZAOVcBYDrrdxZnxKOMWxwXlS9Mwew/G1B79D0DdjlhZy6pfhDhW5hf/ihYr93/GDB9W/AcarAlMvsrnPsXokcMg3oRuFAhz2XKRsVB+qpLPxCg6Zoy+Ca+ZiFpJwt7hvB03U/22VUTwEKUHUSoOXgXiXo4PkvcGWpxmHL5zXCc53jymVoIXQmuLc0us9B3ZXCoCvAyReOA87t/C+MPAWpCo8Qakn/bxjmN1hg8K5js0ygP1eSsLOU58JJoa4Tvm6A7UPoNIC0SQLg3GRzEdgywgPvA+Ljn94nsbw1fsJboQ/7VvmSXOhjpKRwzlWo21RuFgFXHYGXvwvKFXbXRz7Ew/xdr6szZzBVVEXOXo8rrN8PWU4sttMWGxjHeMIe7/PryrYiyQLheeeNE9WO6yl9Tt+RsY6WznyakV2BI5lsFSEponGxubvUHfglKR3zsMqSHrLAzx9TgrDfKIUo4zC8a2EVCo4JURGCeSszja9Hw2eW+nCg6KIny2ma360kS2Y3/n3zsuB1mxxRxqAHbhr6OAAAAAA==" alt="" aria-hidden="true" /></span>
             <span><strong>روبیکا</strong><small>Rubika Mobile Web</small></span>
@@ -418,7 +436,29 @@
             <span class="social-badge telegram"><img class="social-logo-image" src="data:image/webp;base64,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" alt="" aria-hidden="true" /></span>
             <span><strong>تلگرام</strong><small>Telegram Web</small></span>
           </button>
-        </nav>
+          </nav>
+
+          <div class="social-storage-tools" aria-label="مدیریت پوشه شبکه‌های اجتماعی">
+            <div class="social-storage-path">
+              <span class="social-storage-status-dot"></span>
+              <span id="socialStoragePathLabel">پوشه پیش‌فرض CafeDesk</span>
+            </div>
+            <div class="social-storage-actions">
+              <button id="chooseSocialStorageBtn" class="social-storage-btn" type="button" title="انتخاب پوشه ذخیره شبکه‌های اجتماعی">
+                <span class="social-storage-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 21s7-5.1 7-12A7 7 0 1 0 5 9c0 6.9 7 12 7 12Zm0-9.2A2.8 2.8 0 1 1 12 6a2.8 2.8 0 0 1 0 5.8Z"/></svg>
+                </span>
+                <span><strong>انتخاب آدرس</strong><small>یک‌بار انتخاب، ذخیره دائمی</small></span>
+              </button>
+              <button id="openSocialStorageBtn" class="social-storage-btn" type="button" title="باز کردن پوشه در Windows">
+                <span class="social-storage-icon folder" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2h6.5A2.5 2.5 0 0 1 21 8.5v8A3.5 3.5 0 0 1 17.5 20h-11A3.5 3.5 0 0 1 3 16.5v-10Z"/></svg>
+                </span>
+                <span><strong>پوشه چاپ</strong><small>باز کردن مستقیم در Windows</small></span>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <section id="socialBrowserPanel" class="social-browser">
           <div class="iphone18-frame" aria-label="نمای موبایل شبکه اجتماعی">

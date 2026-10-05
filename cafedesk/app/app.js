@@ -79,14 +79,9 @@
 
   const uiZoomSelect = $('uiZoomSelect');
 
-  const hourHand = $('hourHand');
-  const minuteHand = $('minuteHand');
-  const secondHand = $('secondHand');
-
+  const digitalClock = $('digitalClock');
   const jalaliDateText = $('jalaliDateText');
-  const calendarMonthTitle = $('calendarMonthTitle');
-  const calendarYearTitle = $('calendarYearTitle');
-  const calendarGrid = $('calendarGrid');
+  const closeWorkspaceBtn = $('closeWorkspaceBtn');
 
   const panes = {
     right: {
@@ -540,7 +535,12 @@
 
       if (side && panes[side]) {
         const source = currentPaneTab(side);
-        openInternalTab(side, url, source?.site || panes[side].site || { name: hostLabel(url), url });
+        openInternalTab(
+          side,
+          url,
+          source?.site || panes[side].site || { name: hostLabel(url), url },
+          payload.method ? payload : null
+        );
       } else {
         try { await webview.loadURL(url); } catch {}
       }
@@ -779,20 +779,54 @@
     setActivePane(side);
   }
 
-  function makePaneWebview(side, site, url, tab) {
+  function makePaneWebview(side, site, url, tab, navigation = null) {
     const pane = panes[side];
     const webview = document.createElement('webview');
     webview.className = 'pane-tab-webview hidden';
     webview.setAttribute('partition', `persist:cafedesk-pane-${side}`);
     webview.setAttribute('preload', GUEST_PRELOAD_URL);
-    webview.setAttribute('src', url);
+    const isPostNavigation = String(navigation?.method || '').toLowerCase() === 'post' && Array.isArray(navigation?.fields);
+    webview.setAttribute('src', isPostNavigation ? 'about:blank' : url);
     webview.setAttribute('allowpopups', 'true');
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,backgroundThrottling=no');
     if (site?.kind === 'social') webview.setAttribute('useragent', SOCIAL_MOBILE_UA);
     webview.setAttribute('aria-label', site.name || hostLabel(url));
 
     webview.addEventListener('did-start-loading', () => pane.host.classList.add('loading'));
-    webview.addEventListener('dom-ready', () => {
+    let postSubmitted = false;
+    webview.addEventListener('dom-ready', async () => {
+      if (isPostNavigation && !postSubmitted) {
+        postSubmitted = true;
+        const postPayload = {
+          url,
+          fields: navigation.fields,
+          enctype: navigation.enctype || 'application/x-www-form-urlencoded'
+        };
+        const encoded = JSON.stringify(postPayload);
+        try {
+          await webview.executeJavaScript(`
+            (() => {
+              const payload = ${encoded};
+              const form = document.createElement('form');
+              form.method = 'post';
+              form.action = payload.url;
+              form.enctype = payload.enctype;
+              for (const field of payload.fields || []) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = String(field.name || '');
+                input.value = String(field.value || '');
+                form.appendChild(input);
+              }
+              document.body.appendChild(form);
+              form.submit();
+            })();
+          `);
+        } catch {
+          try { await webview.loadURL(url); } catch {}
+        }
+        return;
+      }
       applySiteZoom(webview, getSiteZoom(site));
       syncSavedCredentials(webview);
     });
@@ -816,10 +850,16 @@
     });
 
     webview.addEventListener('ipc-message', (event) => handleWebviewMessage(webview, event, side));
+    webview.addEventListener('new-window', (event) => {
+      const targetUrl = String(event?.url || '');
+      if (!/^https?:/i.test(targetUrl)) return;
+      try { event.preventDefault?.(); } catch {}
+      openInternalTab(side, targetUrl, tab.site);
+    });
     return webview;
   }
 
-  function createPaneTab(side, site, url, title) {
+  function createPaneTab(side, site, url, title, navigation = null) {
     const pane = panes[side];
     if (!pane?.frame) return null;
 
@@ -828,24 +868,33 @@
       site: site || { name: hostLabel(url), url },
       url,
       title: title || site?.name || hostLabel(url) || 'تب جدید',
-      webview: null
+      webview: null,
+      openedAt: Date.now()
     };
 
-    tab.webview = makePaneWebview(side, tab.site, url, tab);
+    tab.webview = makePaneWebview(side, tab.site, url, tab, navigation);
     pane.tabs.push(tab);
     pane.frame.append(tab.webview);
     activatePaneTab(side, tab.id);
     return tab;
   }
 
-  function openInternalTab(side, url, sourceSite) {
+  function openInternalTab(side, url, sourceSite, navigation = null) {
     if (!/^https?:/i.test(String(url || ''))) return;
+
+    const pane = panes[side];
+    const recent = pane?.tabs?.find((item) => item.url === url && Date.now() - Number(item.openedAt || 0) < 900);
+    if (recent && !navigation?.method) {
+      activatePaneTab(side, recent.id);
+      return;
+    }
+
     const site = {
       ...(sourceSite || {}),
       name: hostLabel(url) || sourceSite?.name || 'تب جدید',
       url
     };
-    createPaneTab(side, site, url, hostLabel(url) || 'تب جدید');
+    createPaneTab(side, site, url, hostLabel(url) || 'تب جدید', navigation);
   }
 
   async function closePaneTab(side, tabId) {
@@ -872,9 +921,6 @@
   function openSite(site, side) {
     const pane = panes[side];
     if (!pane) return;
-
-    const otherSide = side === 'right' ? 'left' : 'right';
-    if (panes[otherSide]?.webview) closePane(otherSide);
 
     (pane.tabs || []).forEach((tab) => {
       try { tab.webview.remove(); } catch {}
@@ -1576,7 +1622,7 @@
     if (payload.state === 'completed') {
       const message = '✓ ذخیره شد: ' + (payload.filename || 'فایل');
       if (paneSide) showPaneToast(paneSide, message, 'success');
-      else if (socialMatch) showSocialToast(message, 'success');
+      else if (socialMatch) showSocialToast('✓ دانلود شد: ' + (payload.filename || 'فایل'), 'success');
       else showToast(message, 'success');
       if (socialDialog?.classList.contains('folder-mode')) loadPrintFolder(currentPrintFolderPath || '');
     } else if (payload.state === 'interrupted') {
@@ -1593,7 +1639,7 @@
 
     const paneMatch = tabByWebContentsId(payload.sourceId);
     if (paneMatch) {
-      openInternalTab(paneMatch.side, url, paneMatch.tab.site);
+      openInternalTab(paneMatch.side, url, paneMatch.tab.site, payload.method ? payload : null);
       return;
     }
 
@@ -1601,6 +1647,12 @@
     if (socialMatch) {
       try { socialMatch.view.loadURL(url); } catch {}
     }
+  });
+
+  closeWorkspaceBtn?.addEventListener('click', () => {
+    closePane('right');
+    closePane('left');
+    showDashboard();
   });
 
   document.querySelectorAll('.pane-host').forEach((host) => {
@@ -1659,115 +1711,29 @@
 
   uiZoomSelect.addEventListener('change', () => setUiZoom(uiZoomSelect.value));
 
-  // Analog clock
-  function updateClock() {
+  // Compact digital clock and current Jalali date in the top bar.
+  function updateHeaderDateTime() {
     const now = new Date();
-    const seconds = now.getSeconds() + now.getMilliseconds() / 1000;
-    const minutes = now.getMinutes() + seconds / 60;
-    const hours = (now.getHours() % 12) + minutes / 60;
-
-    secondHand.style.transform = `rotate(${seconds * 6}deg)`;
-    minuteHand.style.transform = `rotate(${minutes * 6}deg)`;
-    hourHand.style.transform = `rotate(${hours * 30}deg)`;
-  }
-
-  function persianParts(date) {
-    const formatter = new Intl.DateTimeFormat('en-US-u-ca-persian', {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric'
-    });
-
-    const parts = Object.fromEntries(
-      formatter.formatToParts(date)
-        .filter((part) => ['year', 'month', 'day'].includes(part.type))
-        .map((part) => [part.type, Number(part.value)])
-    );
-
-    return {
-      year: parts.year,
-      month: parts.month,
-      day: parts.day
-    };
-  }
-
-  function findPersianMonthStart(today, target) {
-    for (let offset = 0; offset <= 35; offset++) {
-      const date = new Date(today);
-      date.setHours(12, 0, 0, 0);
-      date.setDate(today.getDate() - offset);
-
-      const p = persianParts(date);
-      if (p.year === target.year && p.month === target.month && p.day === 1) {
-        return date;
-      }
+    if (digitalClock) {
+      digitalClock.textContent = new Intl.DateTimeFormat('fa-IR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(now);
     }
-
-    return null;
+    if (jalaliDateText) {
+      jalaliDateText.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }).format(now);
+    }
   }
 
-  function renderPersianCalendar() {
-    const now = new Date();
-    const current = persianParts(now);
-
-    jalaliDateText.textContent = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    }).format(now);
-
-    calendarMonthTitle.textContent = persianMonths[current.month - 1] || '';
-    calendarYearTitle.textContent = new Intl.NumberFormat('fa-IR', { useGrouping: false }).format(current.year);
-
-    const first = findPersianMonthStart(now, current);
-    calendarGrid.replaceChildren();
-
-    if (!first) return;
-
-    const startIndex = (first.getDay() + 1) % 7;
-    const cells = [];
-
-    for (let i = 0; i < startIndex; i++) {
-      cells.push({ blank: true });
-    }
-
-    for (let day = 1; day <= 31; day++) {
-      const date = new Date(first);
-      date.setDate(first.getDate() + day - 1);
-      const p = persianParts(date);
-
-      if (p.year !== current.year || p.month !== current.month) break;
-
-      cells.push({
-        day,
-        weekday: (date.getDay() + 1) % 7,
-        today: day === current.day
-      });
-    }
-
-    while (cells.length % 7 !== 0) cells.push({ blank: true });
-
-    cells.forEach((cell) => {
-      const span = document.createElement('span');
-
-      if (cell.blank) {
-        span.className = 'muted';
-        span.textContent = '';
-      } else {
-        span.textContent = faNumber(cell.day);
-        if (cell.weekday === 6) span.classList.add('friday');
-        if (cell.today) span.classList.add('today');
-      }
-
-      calendarGrid.append(span);
-    });
-  }
-
-  updateClock();
-  renderPersianCalendar();
-  setInterval(updateClock, 250);
-  setInterval(renderPersianCalendar, 60 * 60 * 1000);
+  updateHeaderDateTime();
+  setInterval(updateHeaderDateTime, 1000);
 
   // Calculator
   const calcDisplay = $('calcDisplay');

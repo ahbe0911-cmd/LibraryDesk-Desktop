@@ -978,6 +978,7 @@
       title.textContent = site.name;
       applySiteZoom(webview, getSiteZoom(site));
       syncSavedCredentials(webview);
+      installPagePrintBridge(webview);
     });
 
     webview.addEventListener('did-fail-load', (event) => {
@@ -1052,6 +1053,13 @@
     setActivePane(side);
   }
 
+  async function installPagePrintBridge(webview) {
+    if (!webview) return;
+    try {
+      await webview.executeJavaScript("(() => { if (window.__cafedeskPrintBridgeInstalled) return; window.__cafedeskPrintBridgeInstalled = true; window.print = () => document.dispatchEvent(new CustomEvent('cafedesk-print-request')); })()", true);
+    } catch {}
+  }
+
   function makePaneWebview(side, site, url, tab, navigation = null) {
     const pane = panes[side];
     const webview = document.createElement('webview');
@@ -1099,6 +1107,7 @@
         } catch {
           try { await webview.loadURL(url); } catch {}
         }
+        installPagePrintBridge(webview);
         return;
       }
       applySiteZoom(webview, getSiteZoom(site));

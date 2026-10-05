@@ -122,9 +122,14 @@ jobs:
           $output = [IO.File]::Create("update-1.0.19.patch")
           $gzip.CopyTo($output)
           $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --directory=build-src --whitespace=nowarn "update-1.0.19.patch"
+          git apply --exclude=build-src/package.json --directory=build-src --whitespace=nowarn "update-1.0.19.patch"
           if ($LASTEXITCODE -ne 0) { throw "1.0.19 UI patch failed" }
-          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
+          $pkgPath = "build-src\package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = "1.0.19"
+          $pkg.description = "LibraryDesk Windows — refined browser chrome, light/dark viewer, overdue modal cards and improved analog clock"
+          [IO.File]::WriteAllText($pkgPath, ($pkg | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
           if ($pkg.version -ne "1.0.19") { throw "1.0.19 version update failed" }
           $mainUi = Get-Content "build-src\app\newtab.html" -Raw
           $viewerUi = Get-Content "build-src\app\viewer.html" -Raw

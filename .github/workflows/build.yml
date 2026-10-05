@@ -229,7 +229,8 @@ jobs:
       - name: Apply 1.0.24 clock, Eitaa and calendar update
         shell: pwsh
         run: |
-          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.24.patch.gz.b64" -Raw))
+          $patch64 = (Get-Content "updates\update-1.0.24.patch.gz.b64" -Raw) -replace '\s', ''
+          $payload = [Convert]::FromBase64String($patch64)
           $input = New-Object IO.MemoryStream(,$payload)
           $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
           $output = [IO.File]::Create("update-1.0.24.patch")

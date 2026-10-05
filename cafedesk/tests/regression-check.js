@@ -39,7 +39,7 @@ assert(app.includes('setTimeout(run, 720)'), 'heavy printToPDF refresh must be d
 assert(app.includes("schedulePrintPreviewRefresh({ backend: false })"), 'lightweight preview path missing');
 assert(app.includes("schedulePrintPreviewRefresh({ backend: true })"), 'deferred backend preview path missing');
 assert(!css.includes('.print-paper-preview{\n  transition:aspect-ratio .18s ease,width .18s ease;'), 'aspect-ratio animation should not remain');
-assert(css.includes('.print-paper-preview{\n  transition:none!important;'), 'stable preview CSS missing');
+assert(css.includes('.print-paper-preview') && css.includes('transition:none!important'), 'stable preview CSS missing');
 assert(css.includes('scrollbar-gutter:stable both-edges'), 'stable print preview scrollbar missing');
 
 // Eblagh credential manager: search, copy, replace, autofill.

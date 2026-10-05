@@ -289,6 +289,10 @@ function openInternalTab(url, navigation = null) {
 }
 
 function bind() {
+  document.addEventListener('cafedesk-print-request', () => {
+    ipcRenderer.sendToHost('print-request');
+  }, true);
+
   document.addEventListener('input', (event) => {
     const { usernameInput } = loginFields();
     if (event.target === usernameInput) setTimeout(maybeAutofill, 0);

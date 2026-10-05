@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.9</span>
+      <span class="version" id="versionText">v1.0.10</span>
     </div>
   </header>
 
@@ -288,7 +288,7 @@
       <div class="dialog-head social-dialog-head">
         <div>
           <div class="section-kicker">دسترسی سریع وب</div>
-          <h3>شبکه اجتماعی / پوشه فایل</h3>
+          <h3>شبکه‌های اجتماعی</h3>
         </div>
         <button id="closeSocialBtn" class="dialog-close" type="button">×</button>
       </div>
@@ -318,18 +318,29 @@
         </nav>
 
         <section id="socialBrowserPanel" class="social-browser">
-          <div class="social-browser-bar">
-            <div>
-              <span class="social-live-dot"></span>
-              <strong id="socialTitle">انتخاب مقصد</strong>
+          <div class="iphone18-frame" aria-label="نمای موبایل شبکه اجتماعی">
+            <span class="iphone18-action-button" aria-hidden="true"></span>
+            <span class="iphone18-volume-button top" aria-hidden="true"></span>
+            <span class="iphone18-volume-button bottom" aria-hidden="true"></span>
+            <div class="iphone18-screen">
+              <div class="iphone18-dynamic-island" aria-hidden="true">
+                <span class="iphone18-camera"></span>
+              </div>
+              <div class="social-browser-bar">
+                <div>
+                  <span class="social-live-dot"></span>
+                  <strong id="socialTitle">روبیکا</strong>
+                </div>
+                <button id="reloadSocialBtn" class="social-reload-btn" type="button">↻ بارگذاری مجدد</button>
+              </div>
+              <div id="socialWebviewHost" class="social-webview-host"></div>
+              <div id="socialStatusOverlay" class="social-status-overlay hidden">
+                <span class="social-loader" aria-hidden="true"></span>
+                <strong id="socialStatusText">در حال بارگذاری…</strong>
+                <button id="socialRetryBtn" class="hidden" type="button">تلاش مجدد</button>
+              </div>
+              <div class="iphone18-home-indicator" aria-hidden="true"></div>
             </div>
-            <button id="reloadSocialBtn" class="social-reload-btn" type="button">↻ بارگذاری مجدد</button>
-          </div>
-          <div id="socialWebviewHost" class="social-webview-host"></div>
-          <div id="socialStatusOverlay" class="social-status-overlay hidden">
-            <span class="social-loader" aria-hidden="true"></span>
-            <strong id="socialStatusText">در حال بارگذاری…</strong>
-            <button id="socialRetryBtn" class="hidden" type="button">تلاش مجدد</button>
           </div>
         </section>
 

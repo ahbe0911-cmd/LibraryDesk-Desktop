@@ -341,7 +341,7 @@ function configureGuestContents(contents) {
 
   contents.setWindowOpenHandler((details) => {
     const url = String(details?.url || '');
-    if (/^https?:/i.test(url)) {
+    if (/^https?:/i.test(url) || /^blob:https?:/i.test(url) || /^data:application\/pdf/i.test(url)) {
       const host = contents.hostWebContents;
       if (host && !host.isDestroyed()) {
         host.send('cafedesk:guest-open-tab', {

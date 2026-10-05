@@ -1,0 +1,52 @@
+name: Build CafeSocial 1.0.0
+
+on:
+  push:
+    branches: [cafesocial]
+    paths:
+      - 'cafesocial/**'
+      - '.github/workflows/cafesocial-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: cafesocial
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: cafesocial/package.json
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Validate JavaScript
+        run: |
+          node --check main.js
+          node --check preload.js
+          node --check app/app.js
+
+      - name: Build Windows installer
+        run: npm run dist
+
+      - name: Upload Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: CafeSocial-1.0.0-Setup-Win10-x64
+          path: cafesocial/dist/CafeSocial-Setup-1.0.0-Win10-x64.exe
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: CafeSocial-1.0.0-Portable-Win10-x64
+          path: cafesocial/dist/win-unpacked/**
+          if-no-files-found: error
+          retention-days: 90

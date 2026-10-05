@@ -13,17 +13,14 @@ contextBridge.exposeInMainWorld('cafeDesk', {
   deleteCredential: (payload) => ipcRenderer.invoke('credentials:delete', payload || {}),
   exportPageCapture: (webContentsId, label, format) => ipcRenderer.invoke('capture:export-page', Number(webContentsId), String(label || ''), String(format || 'jpg')),
   listDownloadFolder: (requestedPath) => ipcRenderer.invoke('files:list-download-folder', requestedPath || ''),
+  getDownloadThumbnail: (targetPath) => ipcRenderer.invoke('files:get-thumbnail', String(targetPath || '')),
+  openDownloadItems: (targetPaths) => ipcRenderer.invoke('files:open-download-items', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
   openDownloadItem: (targetPath) => ipcRenderer.invoke('files:open-download-item', String(targetPath || '')),
   showDownloadItem: (targetPath) => ipcRenderer.invoke('files:show-download-item', String(targetPath || '')),
   openDownloadRoot: () => ipcRenderer.invoke('files:open-download-root'),
   showFileContextMenu: (targetPaths) => ipcRenderer.invoke('files:context-menu', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
   printDownloadItems: (targetPaths) => ipcRenderer.invoke('files:print-download-items', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
   repairSocialApp: (key) => ipcRenderer.invoke('social:repair', String(key || '')),
-  getMediaSourceId: (webContentsId) => ipcRenderer.invoke('capture:get-media-source-id', Number(webContentsId)),
-  startRecordingFile: (label) => ipcRenderer.invoke('capture:recording-start', String(label || '')),
-  appendRecordingChunk: (sessionId, chunk) => ipcRenderer.invoke('capture:recording-chunk', String(sessionId || ''), chunk),
-  finishRecordingFile: (sessionId) => ipcRenderer.invoke('capture:recording-finish', String(sessionId || '')),
-  abortRecordingFile: (sessionId) => ipcRenderer.invoke('capture:recording-abort', String(sessionId || '')),
   onGuestOpenTab: (callback) => {
     ipcRenderer.on('cafedesk:guest-open-tab', (_event, payload) => {
       if (typeof callback === 'function') callback(payload);

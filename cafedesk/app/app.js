@@ -570,23 +570,23 @@
       const id = webview.getWebContentsId();
       button.disabled = true;
       button.innerHTML = '<span class="capture-working">…</span>';
-      button.title = 'در حال گرفتن عکس از نمای فعلی';
+      button.title = 'در حال گرفتن اسکرین‌شات با کیفیت اصلی';
 
       const result = await window.cafeDesk.exportPageCapture(
         id,
         site?.name || hostLabel(webview.getURL()) || 'CafeDesk',
-        'jpg'
+        'png'
       );
       if (!result?.ok) return;
 
       button.innerHTML = '<span class="capture-done-check">✓</span>';
-      button.title = 'اسکرین‌شات نمای فعلی ذخیره شد';
+      button.title = 'اسکرین‌شات PNG با کیفیت اصلی ذخیره شد';
       if (side) showPaneToast(side, '✓ عکس صفحه ذخیره شد', 'success');
       else showToast('✓ عکس صفحه ذخیره شد', 'success');
 
       setTimeout(() => {
         button.innerHTML = originalHtml;
-        button.title = 'اسکرین‌شات واقعی از نمای فعلی';
+        button.title = 'اسکرین‌شات PNG از نمای واقعی صفحه';
       }, 1600);
     } catch (error) {
       alert('گرفتن اسکرین‌شات انجام نشد: ' + (error?.message || error));
@@ -641,7 +641,7 @@
     });
 
     const print = makePaneIconButton('print', 'چاپ این صفحه', () => printWebview(webview));
-    const screenshot = makePaneIconButton('screenshot', 'اسکرین‌شات واقعی از نمای فعلی', () => captureScreenshot(webview, screenshot, site, side));
+    const screenshot = makePaneIconButton('screenshot', 'اسکرین‌شات PNG از نمای واقعی صفحه', () => captureScreenshot(webview, screenshot, site, side));
     screenshot.classList.add('screenshot-btn');
 
     const downloads = makePaneButton('⬇', 'پوشه دانلودها', () => {
@@ -656,7 +656,7 @@
     zoomLabel.textContent = 'زوم';
 
     const zoomSelect = document.createElement('select');
-    [60,70,75,80,85,90,100,110,125,150].forEach((value) => {
+    Array.from({ length: 19 }, (_, index) => 60 + index * 5).forEach((value) => {
       const option = document.createElement('option');
       option.value = String(value);
       option.textContent = faNumber(value) + '٪';

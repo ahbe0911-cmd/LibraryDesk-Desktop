@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('cafeDesk', {
   openDownloadRoot: () => ipcRenderer.invoke('files:open-download-root'),
   showFileContextMenu: (targetPaths) => ipcRenderer.invoke('files:context-menu', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
   printDownloadItems: (targetPaths) => ipcRenderer.invoke('files:print-download-items', Array.isArray(targetPaths) ? targetPaths : [targetPaths]),
+  getPrinters: () => ipcRenderer.invoke('print:get-printers'),
+  preparePrint: (webContentsId) => ipcRenderer.invoke('print:prepare', Number(webContentsId)),
+  printGuest: (webContentsId, options) => ipcRenderer.invoke('print:guest', Number(webContentsId), options || {}),
+  printGuestSystem: (webContentsId) => ipcRenderer.invoke('print:guest-system', Number(webContentsId)),
   repairSocialApp: (key) => ipcRenderer.invoke('social:repair', String(key || '')),
   onGuestOpenTab: (callback) => {
     ipcRenderer.on('cafedesk:guest-open-tab', (_event, payload) => {

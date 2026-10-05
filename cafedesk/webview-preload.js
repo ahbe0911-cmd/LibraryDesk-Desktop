@@ -219,6 +219,14 @@ function setNativeValue(input, value) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function normalizeCredentialUsername(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .toLocaleLowerCase();
+}
+
 function maybeAutofill() {
   const fields = loginFields();
   const { usernameInput, passwordInput } = fields;
@@ -226,11 +234,12 @@ function maybeAutofill() {
   if (!passwordInput || !savedCredentials.length) return;
 
   const typedUsername = String(usernameInput?.value || '').trim();
+  const typedUsernameKey = normalizeCredentialUsername(typedUsername);
   let match = null;
 
-  if (typedUsername) {
+  if (typedUsernameKey) {
     match = savedCredentials.find((entry) =>
-      String(entry.username || '').trim().toLocaleLowerCase() === typedUsername.toLocaleLowerCase()
+      normalizeCredentialUsername(entry.username) === typedUsernameKey
     );
   } else if (savedCredentials.length === 1) {
     match = savedCredentials[0];

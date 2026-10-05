@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu, dialog, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, session, shell, safeStorage, Menu, dialog, webContents, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -9,7 +9,6 @@ app.setName('CafeDesk');
 const DESKTOP_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const MOBILE_UA = `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Mobile Safari/537.36`;
 const configuredPartitions = new Set();
-const activeRecordings = new Map();
 
 function clampZoom(percent) {
   const value = Number(percent);
@@ -288,6 +287,7 @@ function configureGuestSession(ses) {
       try {
         host.send('cafedesk:download-status', {
           state,
+          sourceId: sourceContents?.id || 0,
           filename: item.getFilename(),
           savePath: item.getSavePath(),
           receivedBytes: item.getReceivedBytes(),
@@ -419,15 +419,16 @@ app.whenReady().then(() => {
     return { base, target };
   }
 
-  ipcMain.handle('files:list-download-folder', (_event, requestedPath) => {
+  ipcMain.handle('files:list-download-folder', async (_event, requestedPath) => {
     const { base, target } = resolveInsideDownloadFolder(requestedPath);
-    const stat = fs.statSync(target);
+    const stat = await fs.promises.stat(target);
     if (!stat.isDirectory()) throw new Error('مسیر انتخاب‌شده پوشه نیست.');
 
-    const entries = fs.readdirSync(target, { withFileTypes: true }).map((entry) => {
+    const dirEntries = await fs.promises.readdir(target, { withFileTypes: true });
+    const entries = await Promise.all(dirEntries.map(async (entry) => {
       const fullPath = path.join(target, entry.name);
       let itemStat = null;
-      try { itemStat = fs.statSync(fullPath); } catch {}
+      try { itemStat = await fs.promises.stat(fullPath); } catch {}
       return {
         name: entry.name,
         path: fullPath,
@@ -436,7 +437,9 @@ app.whenReady().then(() => {
         mtimeMs: itemStat?.mtimeMs || 0,
         extension: entry.isDirectory() ? '' : path.extname(entry.name).toLowerCase()
       };
-    }).sort((a, b) => {
+    }));
+
+    entries.sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
       return a.name.localeCompare(b.name, 'fa');
     });
@@ -447,6 +450,30 @@ app.whenReady().then(() => {
       parent: target === base ? null : path.dirname(target),
       entries
     };
+  });
+
+  ipcMain.handle('files:get-thumbnail', async (_event, targetPath) => {
+    const { target } = resolveInsideDownloadFolder(targetPath);
+    try {
+      const stat = await fs.promises.stat(target);
+      if (!stat.isFile()) return { ok: false, dataUrl: '' };
+      const thumbnail = await nativeImage.createThumbnailFromPath(target, { width: 176, height: 132 });
+      if (!thumbnail || thumbnail.isEmpty()) return { ok: false, dataUrl: '' };
+      return { ok: true, dataUrl: thumbnail.toDataURL() };
+    } catch {
+      return { ok: false, dataUrl: '' };
+    }
+  });
+
+  ipcMain.handle('files:open-download-items', async (_event, targetPaths) => {
+    const requested = Array.isArray(targetPaths) ? targetPaths : [targetPaths];
+    const resolved = requested
+      .filter(Boolean)
+      .map((value) => resolveInsideDownloadFolder(value).target)
+      .filter((value, index, array) => array.indexOf(value) === index);
+
+    const results = await Promise.all(resolved.map((target) => shell.openPath(target).catch(() => 'open failed')));
+    return { ok: resolved.length > 0, count: resolved.length, errors: results.filter(Boolean) };
   });
 
   ipcMain.handle('files:open-download-item', async (_event, targetPath) => {
@@ -490,6 +517,11 @@ app.whenReady().then(() => {
       template.push({
         label: first.isDirectory ? 'باز کردن پوشه' : 'باز کردن با برنامه پیش‌فرض ویندوز',
         click: () => shell.openPath(first.target).catch(() => {})
+      });
+    } else if (files.length > 1) {
+      template.push({
+        label: `باز کردن ${files.length} فایل با برنامه پیش‌فرض ویندوز`,
+        click: () => files.forEach((target) => shell.openPath(target).catch(() => {}))
       });
     }
 
@@ -547,83 +579,16 @@ app.whenReady().then(() => {
   ipcMain.handle('credentials:list', () => listCredentials());
   ipcMain.handle('credentials:delete', (_event, payload) => deleteCredential(payload));
 
-  ipcMain.handle('capture:export-page', async (event, webContentsId, label, requestedFormat) => {
+  ipcMain.handle('capture:export-page', async (event, webContentsId, label) => {
     const guest = getGuestForHost(event, webContentsId);
-    const format = String(requestedFormat || 'jpg').toLowerCase() === 'pdf' ? 'pdf' : 'jpg';
     const stem = `${cleanFileStem(label, 'CafeDesk-Screenshot')}-${timestampForFile()}`;
-
-    if (format === 'pdf') {
-      const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.pdf`);
-      const pdf = await guest.printToPDF({
-        printBackground: true,
-        preferCSSPageSize: true,
-        displayHeaderFooter: false
-      });
-      fs.writeFileSync(target, pdf);
-      return { ok: true, format, path: target, label: path.basename(target) };
-    }
-
     const target = nextAvailableDownloadPath(getDownloadFolder(), `${stem}.jpg`);
-    const debuggerWasAttached = guest.debugger.isAttached();
-    try {
-      if (!debuggerWasAttached) guest.debugger.attach('1.3');
-      const result = await guest.debugger.sendCommand('Page.captureScreenshot', {
-        format: 'jpeg',
-        quality: 100,
-        fromSurface: true,
-        captureBeyondViewport: true,
-        optimizeForSpeed: false
-      });
-      fs.writeFileSync(target, Buffer.from(result.data, 'base64'));
-    } finally {
-      if (!debuggerWasAttached && guest.debugger.isAttached()) {
-        try { guest.debugger.detach(); } catch {}
-      }
-    }
 
-    return { ok: true, format, path: target, label: path.basename(target) };
-  });
+    const image = await guest.capturePage();
+    if (!image || image.isEmpty()) throw new Error('تصویر صفحه در دسترس نیست.');
+    fs.writeFileSync(target, image.toJPEG(100));
 
-  ipcMain.handle('capture:get-media-source-id', (event, webContentsId) => {
-    const guest = getGuestForHost(event, webContentsId);
-    return guest.getMediaSourceId(event.sender);
-  });
-
-  ipcMain.handle('capture:recording-start', (event, label) => {
-    const sessionId = crypto.randomUUID();
-    const target = nextAvailableDownloadPath(
-      getDownloadFolder(),
-      `${cleanFileStem(label, 'CafeDesk-Recording')}-${timestampForFile()}.webm`
-    );
-    fs.writeFileSync(target, Buffer.alloc(0));
-    activeRecordings.set(sessionId, { ownerId: event.sender.id, path: target });
-    return { ok: true, sessionId, path: target, label: path.basename(target) };
-  });
-
-  ipcMain.handle('capture:recording-chunk', (event, sessionId, chunk) => {
-    const recording = activeRecordings.get(String(sessionId || ''));
-    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
-    fs.appendFileSync(recording.path, Buffer.from(chunk));
-    return { ok: true };
-  });
-
-  ipcMain.handle('capture:recording-finish', (event, sessionId) => {
-    const key = String(sessionId || '');
-    const recording = activeRecordings.get(key);
-    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
-    activeRecordings.delete(key);
-    return { ok: true, path: recording.path, label: path.basename(recording.path) };
-  });
-
-  ipcMain.handle('capture:recording-abort', (event, sessionId) => {
-    const key = String(sessionId || '');
-    const recording = activeRecordings.get(key);
-    if (!recording || recording.ownerId !== event.sender.id) return { ok: false };
-    activeRecordings.delete(key);
-    try {
-      if (fs.existsSync(recording.path) && fs.statSync(recording.path).size === 0) fs.unlinkSync(recording.path);
-    } catch {}
-    return { ok: true };
+    return { ok: true, format: 'jpg', path: target, label: path.basename(target) };
   });
 
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {

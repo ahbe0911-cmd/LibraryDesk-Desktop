@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.9",
-  "description": "CafeDesk - fast Persian dual-browser internet-cafe dashboard with fully independent right/left sessions, in-pane social apps, exact viewport screenshots, Explorer thumbnails and secure Eblagh autofill",
+  "version": "1.0.10",
+  "description": "CafeDesk - Persian single 50% browser workspace with separate iPhone-style social apps, persistent zoom, lossless PNG screenshots, Explorer thumbnails and secure Eblagh autofill",
   "main": "main.js",
   "private": true,
   "scripts": {

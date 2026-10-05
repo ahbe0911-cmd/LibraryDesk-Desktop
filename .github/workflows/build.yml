@@ -236,7 +236,10 @@ jobs:
           $output = [IO.File]::Create("update-1.0.24.patch")
           $gzip.CopyTo($output)
           $output.Dispose(); $gzip.Dispose(); $input.Dispose()
-          git apply --directory=build-src --whitespace=nowarn "update-1.0.24.patch"
+          git apply --exclude=build-src/app/styles.css --directory=build-src --whitespace=nowarn "update-1.0.24.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.24 patch failed" }
+          $styleExtra = Get-Content "updates\update-1.0.24.styles.css" -Raw
+          Add-Content -Path "build-src\app\styles.css" -Value ("\r\n" + $styleExtra) -Encoding UTF8
           if ($LASTEXITCODE -ne 0) { throw "1.0.24 patch failed" }
           $pkgPath = "build-src\package.json"
           $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json

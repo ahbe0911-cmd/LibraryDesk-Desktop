@@ -196,9 +196,12 @@ function captureCredential() {
   ipcRenderer.sendToHost('credential-submitted', payload);
 }
 
-function openInternalTab(url) {
+function openInternalTab(url, navigation = null) {
   if (!/^https?:/i.test(String(url || ''))) return false;
-  ipcRenderer.sendToHost('open-new-tab', { url: String(url) });
+  ipcRenderer.sendToHost('open-new-tab', {
+    url: String(url),
+    ...(navigation && typeof navigation === 'object' ? navigation : {})
+  });
   return true;
 }
 
@@ -217,21 +220,29 @@ function bind() {
     const form = event.target;
     if (form?.matches?.('form[target="_blank"],form[target="blank"]')) {
       const method = String(form.method || 'get').toLowerCase();
-      if (method === 'get') {
-        try {
-          const destination = new URL(form.action || location.href, location.href);
-          const data = new FormData(form);
+      try {
+        const destination = new URL(form.action || location.href, location.href);
+        const data = new FormData(form);
+
+        if (method === 'get') {
           for (const [key, value] of data.entries()) {
-            if (typeof value === 'string') destination.searchParams.set(key, value);
+            if (typeof value === 'string') destination.searchParams.append(key, value);
           }
           event.preventDefault();
           openInternalTab(destination.toString());
-        } catch {
-          form.target = '_self';
+        } else if (method === 'post') {
+          const fields = [];
+          for (const [key, value] of data.entries()) {
+            if (typeof value === 'string') fields.push({ name: key, value });
+          }
+          event.preventDefault();
+          openInternalTab(destination.toString(), {
+            method: 'post',
+            fields,
+            enctype: String(form.enctype || 'application/x-www-form-urlencoded')
+          });
         }
-      } else {
-        form.target = '_self';
-      }
+      } catch {}
     }
     setTimeout(captureCredential, 0);
   }, true);

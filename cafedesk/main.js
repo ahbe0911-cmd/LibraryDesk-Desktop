@@ -266,13 +266,21 @@ function configureGuestSession(ses) {
   configuredPartitions.add(partition);
 
   ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+    // CafeDesk intentionally blocks website push notifications. Clipboard
+    // permissions used by web apps remain available.
     const allowed = new Set([
       'clipboard-read',
-      'clipboard-sanitized-write',
-      'notifications'
+      'clipboard-sanitized-write'
     ]);
     callback(allowed.has(permission));
   });
+
+  ses.setPermissionCheckHandler((_webContents, permission) => {
+    if (permission === 'notifications') return false;
+    return ['clipboard-read', 'clipboard-sanitized-write'].includes(permission);
+  });
+
+  try { ses.spellCheckerEnabled = false; } catch {}
 
   ses.on('will-download', (_event, item, sourceContents) => {
     try {
@@ -561,6 +569,98 @@ app.whenReady().then(() => {
 
     invokeWindowsPrint(files);
     return { ok: files.length > 0, count: files.length };
+  });
+
+  ipcMain.handle('print:get-printers', async (event) => {
+    try {
+      const printers = await event.sender.getPrintersAsync();
+      return printers.map((printer) => ({
+        name: printer.name,
+        displayName: printer.displayName || printer.name,
+        description: printer.description || '',
+        status: printer.status,
+        isDefault: Boolean(printer.isDefault),
+        options: printer.options || {}
+      }));
+    } catch {
+      return [];
+    }
+  });
+
+  ipcMain.handle('print:prepare', async (event, webContentsId) => {
+    const guest = getGuestForHost(event, webContentsId);
+    const response = { ok: true, previewDataUrl: '', pageCount: 1, title: guest.getTitle() || '' };
+
+    try {
+      const image = await guest.capturePage();
+      if (image && !image.isEmpty()) response.previewDataUrl = image.resize({ width: 720 }).toDataURL();
+    } catch {}
+
+    try {
+      const pdf = await guest.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        preferCSSPageSize: false
+      });
+      const raw = Buffer.from(pdf).toString('latin1');
+      const pages = raw.match(/\/Type\s*\/Page\b/g);
+      if (pages?.length) response.pageCount = pages.length;
+    } catch {}
+
+    return response;
+  });
+
+  ipcMain.handle('print:guest', async (event, webContentsId, rawOptions) => {
+    const guest = getGuestForHost(event, webContentsId);
+    const input = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
+
+    const options = {
+      silent: true,
+      printBackground: input.printBackground !== false,
+      color: input.color !== false,
+      landscape: Boolean(input.landscape),
+      copies: Math.max(1, Math.min(99, Number(input.copies) || 1)),
+      collate: input.collate !== false,
+      pagesPerSheet: [1, 2, 4, 6, 9, 16].includes(Number(input.pagesPerSheet)) ? Number(input.pagesPerSheet) : 1,
+      scaleFactor: Math.max(10, Math.min(200, Number(input.scaleFactor) || 100)),
+      duplexMode: ['simplex', 'shortEdge', 'longEdge'].includes(input.duplexMode) ? input.duplexMode : 'simplex',
+      margins: { marginType: ['default', 'none', 'printableArea'].includes(input.marginType) ? input.marginType : 'printableArea' }
+    };
+
+    if (input.deviceName) options.deviceName = String(input.deviceName);
+    if (['A3','A4','A5','Letter','Legal','Tabloid'].includes(input.pageSize)) options.pageSize = input.pageSize;
+
+    if (Array.isArray(input.pageRanges) && input.pageRanges.length) {
+      options.pageRanges = input.pageRanges
+        .map((range) => ({
+          from: Math.max(0, Number(range?.from) || 0),
+          to: Math.max(0, Number(range?.to) || 0)
+        }))
+        .filter((range) => range.to >= range.from);
+    }
+
+    return await new Promise((resolve) => {
+      try {
+        guest.print(options, (success, failureReason) => {
+          resolve({ ok: Boolean(success), message: failureReason || '' });
+        });
+      } catch (error) {
+        resolve({ ok: false, message: error?.message || String(error) });
+      }
+    });
+  });
+
+  ipcMain.handle('print:guest-system', async (event, webContentsId) => {
+    const guest = getGuestForHost(event, webContentsId);
+    return await new Promise((resolve) => {
+      try {
+        guest.print({ silent: false, printBackground: true }, (success, failureReason) => {
+          resolve({ ok: Boolean(success), message: failureReason || '' });
+        });
+      } catch (error) {
+        resolve({ ok: false, message: error?.message || String(error) });
+      }
+    });
   });
 
   ipcMain.handle('social:repair', async (_event, key) => {

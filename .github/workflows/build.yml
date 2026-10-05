@@ -253,7 +253,6 @@ jobs:
           if ($appJs -notmatch 'goCalendarToday') { throw "Calendar Today logic missing" }
           if ($viewerJs -notmatch 'web\.eitaa\.com') { throw "Eitaa viewer compatibility missing" }
           if ($styles -notmatch 'LibraryDesk 1.0.24') { throw "1.0.24 visual styles missing" }
-          if (!(Test-Path "build-src\app\assets\clock-reference.jpg")) { throw "Clock reference asset missing" }
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -1677,3 +1677,110 @@ body.workspace-mode .page{
   .iphone18-frame{height:600px;min-height:500px;border-radius:44px}
   .iphone18-screen{border-radius:38px}
 }
+
+
+/* ===== CafeDesk 1.0.11: restored dual panes + compact digital dashboard ===== */
+
+.topbar{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.header-datetime{
+  min-width:220px;
+  height:46px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  direction:ltr;
+  padding:0 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.065);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+.header-datetime strong{
+  direction:ltr;
+  font:900 20px/1 "Vazirmatn",sans-serif;
+  letter-spacing:.8px;
+  color:#ebfbff;
+  white-space:nowrap;
+}
+.header-datetime span{
+  direction:rtl;
+  color:#8fa7bb;
+  font-size:9px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.top-actions{flex:1;justify-content:center}
+.brand{flex:none}
+
+/* Analog clock/calendar rail removed; site area now uses the full dashboard width. */
+.hero-grid{
+  display:block!important;
+  direction:rtl!important;
+}
+.left-rail{display:none!important}
+.sites-card{
+  width:100%!important;
+  min-height:calc(100vh - 100px);
+}
+.sites-grid{
+  align-content:start;
+}
+
+/* Both browser panes may stay active at the same time again. */
+.dual-shell{
+  grid-template-columns:minmax(0,1fr) 4px minmax(0,1fr)!important;
+}
+.workspace-view{
+  position:relative;
+}
+.close-workspace-btn{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:95;
+  height:28px;
+  padding:0 10px;
+  border-radius:9px;
+  border:1px solid rgba(255,113,132,.28);
+  background:rgba(72,18,30,.88);
+  color:#ffdce2;
+  font:800 9px/1 "Vazirmatn",sans-serif;
+  box-shadow:0 8px 20px rgba(0,0,0,.22);
+  cursor:pointer;
+  opacity:.78;
+  transition:.16s ease;
+}
+.close-workspace-btn:hover{
+  opacity:1;
+  background:rgba(104,24,39,.95);
+  transform:translateX(-50%) translateY(-1px);
+}
+
+/* Social dialog now contains social apps only; no print-folder entry. */
+.social-dialog:not(.folder-mode) .social-nav{
+  justify-content:flex-start!important;
+}
+.social-dialog:not(.folder-mode) .social-layout{
+  grid-template-columns:150px minmax(330px,430px)!important;
+}
+
+/* Download success notification stays pinned near the top of the phone. */
+.social-phone-toast{
+  top:47px!important;
+  background:rgba(219,255,234,.985)!important;
+  border-color:rgba(31,180,100,.42)!important;
+  color:#087244!important;
+}
+
+@media (max-width:1450px){
+  .header-datetime{min-width:190px;gap:7px;padding:0 9px}
+  .header-datetime strong{font-size:17px}
+  .header-datetime span{font-size:8px}
+  .top-actions{gap:4px}
+}

@@ -23,7 +23,7 @@ assert(css.includes('height:auto!important') && css.includes('flex:none!importan
 
 // Tab switching must never reopen the site picker.
 assert(app.includes("item.addEventListener('click', (event) =>"), 'tab click handler missing');
-assert(app.includes('event.stopPropagation();\n        activatePaneTab(side, tab.id);'), 'tab click must stop propagation');
+assert(/event\.stopPropagation\(\);\s*activatePaneTab\(side, tab\.id\);/.test(app), 'tab click must stop propagation');
 assert(app.includes("pane.slot.removeAttribute('data-empty-side')"), 'occupied pane must lose empty-pane marker');
 assert(!app.includes("document.querySelectorAll('[data-empty-side]').forEach"), 'permanent empty-pane listeners must be removed');
 assert(app.includes("if (!pane.slot.classList.contains('empty-pane')) return;"), 'site picker must only open from actually empty pane');

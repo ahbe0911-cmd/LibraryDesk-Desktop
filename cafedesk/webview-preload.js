@@ -279,7 +279,8 @@ function captureCredential() {
 }
 
 function openInternalTab(url, navigation = null) {
-  if (!/^https?:/i.test(String(url || ''))) return false;
+  const targetUrl = String(url || '');
+  if (!(/^https?:/i.test(targetUrl) || /^blob:https?:/i.test(targetUrl) || /^data:application\/pdf/i.test(targetUrl))) return false;
   ipcRenderer.sendToHost('open-new-tab', {
     url: String(url),
     ...(navigation && typeof navigation === 'object' ? navigation : {})

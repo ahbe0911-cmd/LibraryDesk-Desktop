@@ -1037,7 +1037,7 @@
     webview.addEventListener('ipc-message', (event) => handleWebviewMessage(webview, event, side));
     webview.addEventListener('new-window', (event) => {
       const targetUrl = String(event?.url || '');
-      if (!/^https?:/i.test(targetUrl)) return;
+      if (!(/^https?:/i.test(targetUrl) || /^blob:https?:/i.test(targetUrl) || /^data:application\/pdf/i.test(targetUrl))) return;
       try { event.preventDefault?.(); } catch {}
       openInternalTab(side, targetUrl, tab.site);
     });
@@ -1065,7 +1065,9 @@
   }
 
   function openInternalTab(side, url, sourceSite, navigation = null) {
-    if (!/^https?:/i.test(String(url || ''))) return;
+    const targetUrl = String(url || '');
+    const allowedTarget = /^https?:/i.test(targetUrl) || /^blob:https?:/i.test(targetUrl) || /^data:application\/pdf/i.test(targetUrl);
+    if (!allowedTarget) return;
 
     const pane = panes[side];
     const recent = pane?.tabs?.find((item) => item.url === url && Date.now() - Number(item.openedAt || 0) < 900);
@@ -1820,7 +1822,7 @@
 
   window.cafeDesk.onGuestOpenTab?.((payload) => {
     const url = String(payload?.url || '');
-    if (!/^https?:/i.test(url)) return;
+    if (!(/^https?:/i.test(url) || /^blob:https?:/i.test(url) || /^data:application\/pdf/i.test(url))) return;
 
     const paneMatch = tabByWebContentsId(payload.sourceId);
     if (paneMatch) {

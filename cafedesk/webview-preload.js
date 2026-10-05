@@ -5,6 +5,7 @@ let lastFingerprint = '';
 let lastSentAt = 0;
 let savedCredentials = [];
 let scopeTimer = null;
+const EBLAGH_PENDING_KEY = 'cafedesk.eblagh.pending.v1';
 
 function textHint(input) {
   return [
@@ -68,6 +69,77 @@ function eblaghStage() {
 
 function isEblaghLoginPage() {
   return eblaghStage() === 'login';
+}
+
+function hasEblaghLoginError() {
+  if (!isAdliranHost()) return false;
+  const text = String(document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 9000);
+  return /رمز.{0,20}(?:اشتباه|نادرست|غلط)|نام\s*کاربری.{0,20}(?:اشتباه|نادرست)|اطلاعات.{0,20}(?:اشتباه|نادرست)|ورود.{0,20}(?:ناموفق|موفق\s*نبود)|invalid\s*(?:password|credential)|incorrect\s*(?:password|credential)/i.test(text);
+}
+
+function readPendingEblaghCredential() {
+  try {
+    const raw = sessionStorage.getItem(EBLAGH_PENDING_KEY);
+    if (!raw) return null;
+    const pending = JSON.parse(raw);
+    if (!pending?.password || !pending?.submittedAt) return null;
+    if (Date.now() - Number(pending.submittedAt) > 2 * 60 * 1000) {
+      sessionStorage.removeItem(EBLAGH_PENDING_KEY);
+      return null;
+    }
+    return pending;
+  } catch {
+    return null;
+  }
+}
+
+function rememberPendingEblaghCredential(payload) {
+  try {
+    sessionStorage.setItem(EBLAGH_PENDING_KEY, JSON.stringify({
+      url: EBLAGH_CANONICAL_URL,
+      actualUrl: String(payload.actualUrl || location.href),
+      username: String(payload.username || '').trim(),
+      password: String(payload.password || ''),
+      submittedAt: Date.now()
+    }));
+  } catch {}
+}
+
+function clearPendingEblaghCredential() {
+  try { sessionStorage.removeItem(EBLAGH_PENDING_KEY); } catch {}
+}
+
+function commitPendingEblaghIfVerified() {
+  if (!isAdliranHost()) return;
+
+  const pending = readPendingEblaghCredential();
+  if (!pending) return;
+
+  const stage = eblaghStage();
+  if (stage === 'login' || hasEblaghLoginError()) return;
+
+  const movedToNextUrl = String(location.href || '') !== String(pending.actualUrl || '');
+  const verified = stage === 'otp' || (stage === 'other' && movedToNextUrl);
+  if (!verified) return;
+
+  clearPendingEblaghCredential();
+
+  const payload = {
+    url: EBLAGH_CANONICAL_URL,
+    actualUrl: location.href,
+    username: pending.username,
+    password: pending.password,
+    verified: true,
+    verifiedStage: stage
+  };
+
+  const fingerprint = [payload.url, payload.username, payload.password, 'verified'].join('\u0000');
+  const now = Date.now();
+  if (fingerprint === lastFingerprint && now - lastSentAt < 8000) return;
+
+  lastFingerprint = fingerprint;
+  lastSentAt = now;
+  ipcRenderer.sendToHost('credential-submitted', payload);
 }
 
 function credentialScopeUrl() {
@@ -179,13 +251,23 @@ function collectCredential() {
     url: credentialScopeUrl(),
     actualUrl: location.href,
     username: String(usernameInput?.value || '').trim(),
-    password: String(passwordInput.value || '')
+    password: String(passwordInput.value || ''),
+    eblagh: Boolean(fields.eblagh),
+    eblaghStage: fields.eblaghStage
   };
 }
 
 function captureCredential() {
   const payload = collectCredential();
   if (!payload?.password) return;
+
+  // Eblagh/Sana: never persist immediately on submit. Keep the entered values
+  // only in this webview session and release them after the page proves that
+  // login succeeded by advancing to OTP or another post-login URL.
+  if (payload.eblagh && payload.eblaghStage === 'login') {
+    rememberPendingEblaghCredential(payload);
+    return;
+  }
 
   const fingerprint = [payload.url, payload.username, payload.password].join('\u0000');
   const now = Date.now();
@@ -275,6 +357,7 @@ function bind() {
   const observer = new MutationObserver(() => {
     notifyCredentialScope();
     setTimeout(maybeAutofill, 20);
+    setTimeout(commitPendingEblaghIfVerified, 40);
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
@@ -283,6 +366,9 @@ function bind() {
   setTimeout(maybeAutofill, 100);
   setTimeout(maybeAutofill, 500);
   setTimeout(maybeAutofill, 1200);
+  setTimeout(commitPendingEblaghIfVerified, 120);
+  setTimeout(commitPendingEblaghIfVerified, 700);
+  setTimeout(commitPendingEblaghIfVerified, 1600);
 }
 
 ipcRenderer.on('cafedesk:credentials', (_event, entries) => {

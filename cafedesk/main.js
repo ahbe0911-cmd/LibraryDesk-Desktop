@@ -265,18 +265,21 @@ function configureGuestSession(ses) {
   if (configuredPartitions.has(partition)) return;
   configuredPartitions.add(partition);
 
+  const isSocialPartition = partition.startsWith('persist:cafedesk-social-');
+
   ses.setPermissionRequestHandler((_webContents, permission, callback) => {
-    // CafeDesk intentionally blocks website push notifications. Clipboard
-    // permissions used by web apps remain available.
     const allowed = new Set([
       'clipboard-read',
       'clipboard-sanitized-write'
     ]);
+    // Social apps are intentionally quiet inside CafeDesk. Other browser panes
+    // retain their normal notification behavior.
+    if (!isSocialPartition) allowed.add('notifications');
     callback(allowed.has(permission));
   });
 
   ses.setPermissionCheckHandler((_webContents, permission) => {
-    if (permission === 'notifications') return false;
+    if (permission === 'notifications') return !isSocialPartition;
     return ['clipboard-read', 'clipboard-sanitized-write'].includes(permission);
   });
 

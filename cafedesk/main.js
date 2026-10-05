@@ -84,6 +84,14 @@ function getCredentials(rawUrl) {
     .map((entry) => ({ ...entry, origin: key }));
 }
 
+function credentialUsernameKey(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .toLocaleLowerCase();
+}
+
 function saveCredential(payload) {
   const key = originKey(payload?.url);
   const username = String(payload?.username || '').trim().slice(0, 512);
@@ -95,8 +103,8 @@ function saveCredential(payload) {
   }
 
   const existing = getCredentials(key);
-  const normalizedUser = username.toLocaleLowerCase();
-  const next = existing.filter((item) => String(item.username || '').toLocaleLowerCase() !== normalizedUser);
+  const normalizedUser = credentialUsernameKey(username);
+  const next = existing.filter((item) => credentialUsernameKey(item.username) !== normalizedUser);
   next.unshift({ username, password, updatedAt: Date.now() });
 
   const store = readCredentialStore();

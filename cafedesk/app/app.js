@@ -715,7 +715,7 @@
     if (event.channel === 'open-new-tab') {
       const payload = event.args?.[0] || {};
       const url = String(payload.url || payload || '');
-      if (!/^https?:/i.test(url)) return;
+      if (!(/^https?:/i.test(url) || /^blob:https?:/i.test(url) || /^data:application\/pdf/i.test(url))) return;
 
       if (side && panes[side]) {
         const source = currentPaneTab(side);

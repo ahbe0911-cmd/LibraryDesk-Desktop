@@ -120,7 +120,6 @@
   let sites = loadSites();
   let siteZoomMap = loadSiteZoomMap();
   const socialViews = new Map();
-  const recordingStates = new Map();
   let tabSequence = 0;
   let activeSocial = 'rubika';
   let currentPrintFolderPath = '';
@@ -130,14 +129,15 @@
   let printFolderViewMode = localStorage.getItem('cafedesk.printViewMode.v1') || 'details';
   const socialHealth = new Map();
   let toastTimer = null;
-  let screenshotChoiceResolver = null;
 
+  const SOCIAL_MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
   const socialApps = {
-    rubika: { name: 'روبیکا', url: 'https://m.rubika.ir/' },
-    shad: { name: 'شاد', url: 'https://my.shad.ir/' },
-    eitaa: { name: 'ایتا', url: 'https://web.eitaa.com/' },
-    telegram: { name: 'تلگرام', url: 'https://web.telegram.org/k/' }
+    rubika: { id: 'social-rubika', kind: 'social', name: 'روبیکا', url: 'https://m.rubika.ir/' },
+    shad: { id: 'social-shad', kind: 'social', name: 'شاد', url: 'https://my.shad.ir/' },
+    eitaa: { id: 'social-eitaa', kind: 'social', name: 'ایتا', url: 'https://web.eitaa.com/' },
+    telegram: { id: 'social-telegram', kind: 'social', name: 'تلگرام', url: 'https://web.telegram.org/k/' }
   };
+  const paneToastTimers = { right: null, left: null };
 
   const persianMonths = [
     'فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور',
@@ -155,6 +155,23 @@
     appToast.classList.toggle('error', type === 'error');
     appToast.classList.add('show');
     toastTimer = setTimeout(() => appToast.classList.remove('show'), 3200);
+  }
+
+  function showPaneToast(side, message, type = 'success') {
+    const host = panes[side]?.host;
+    if (!host) return showToast(message, type);
+    let toast = host.querySelector('.pane-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'pane-toast';
+      toast.setAttribute('role', 'status');
+      host.append(toast);
+    }
+    clearTimeout(paneToastTimers[side]);
+    toast.textContent = String(message || '');
+    toast.classList.toggle('error', type === 'error');
+    toast.classList.add('show');
+    paneToastTimers[side] = setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
   function loadSites() {
@@ -329,15 +346,12 @@
 
   function renderPicker() {
     const query = pickerSearchInput.value;
-    const filtered = sites.filter((site) => matchesSearch(site, query));
+    const socialSites = Object.values(socialApps);
+    const available = [...socialSites, ...sites];
+    const filtered = available.filter((site) => matchesSearch(site, query));
 
     pickerSitesGrid.replaceChildren();
-
-    filtered.forEach((site) => {
-      const originalIndex = sites.findIndex((item) => item.id === site.id);
-      pickerSitesGrid.appendChild(createPickerCard(site, Math.max(0, originalIndex)));
-    });
-
+    filtered.forEach((site, index) => pickerSitesGrid.appendChild(createPickerCard(site, index)));
     pickerEmpty.classList.toggle('hidden', filtered.length > 0);
   }
 
@@ -455,7 +469,7 @@
     return null;
   }
 
-  async function handleCredentialSubmitted(webview, data) {
+  async function handleCredentialSubmitted(webview, data, side = null) {
     const password = String(data?.password || '');
     const username = String(data?.username || '').trim();
     let url = String(data?.url || '');
@@ -477,6 +491,10 @@
     try {
       const result = await window.cafeDesk.saveCredential({ url, username, password });
       if (!result?.ok && result?.message) alert(result.message);
+      if (result?.ok) {
+        if (side) showPaneToast(side, '✓ اطلاعات ورود ذخیره شد', 'success');
+        else showToast('✓ اطلاعات ورود ذخیره شد', 'success');
+      }
       await syncSavedCredentials(webview);
       await refreshPasswordManager();
     } catch {}
@@ -517,62 +535,36 @@
     }
 
     if (event.channel === 'credential-submitted') {
-      await handleCredentialSubmitted(webview, event.args?.[0] || {});
+      await handleCredentialSubmitted(webview, event.args?.[0] || {}, side);
     }
   }
 
-  function askScreenshotFormat() {
-    if (!screenshotFormatDialog) return Promise.resolve('jpg');
-    if (screenshotFormatDialog.open) return Promise.resolve(null);
-
-    return new Promise((resolve) => {
-      screenshotChoiceResolver = resolve;
-      screenshotFormatDialog.showModal();
-    });
-  }
-
-  function resolveScreenshotFormat(value) {
-    if (screenshotFormatDialog?.open) screenshotFormatDialog.close();
-    const resolve = screenshotChoiceResolver;
-    screenshotChoiceResolver = null;
-    resolve?.(value);
-  }
-
-  cancelScreenshotFormatBtn?.addEventListener('click', () => resolveScreenshotFormat(null));
-  saveScreenshotJpgBtn?.addEventListener('click', () => resolveScreenshotFormat('jpg'));
-  saveScreenshotPdfBtn?.addEventListener('click', () => resolveScreenshotFormat('pdf'));
-  screenshotFormatDialog?.addEventListener('cancel', (event) => {
-    event.preventDefault();
-    resolveScreenshotFormat(null);
-  });
-
-  async function captureScreenshot(webview, button, site) {
-    const format = await askScreenshotFormat();
-    if (!format) return;
-
+  async function captureScreenshot(webview, button, site, side) {
     const originalHtml = button.innerHTML;
     try {
       const id = webview.getWebContentsId();
       button.disabled = true;
       button.innerHTML = '<span class="capture-working">…</span>';
-      button.title = 'در حال ذخیره صفحه کامل';
+      button.title = 'در حال گرفتن عکس از نمای فعلی';
 
       const result = await window.cafeDesk.exportPageCapture(
         id,
         site?.name || hostLabel(webview.getURL()) || 'CafeDesk',
-        format
+        'jpg'
       );
       if (!result?.ok) return;
 
       button.innerHTML = '<span class="capture-done-check">✓</span>';
-      button.title = `صفحه کامل ذخیره شد: ${result.path || result.label}`;
-      showToast('✓ ذخیره شد: ' + (result.label || (format === 'pdf' ? 'PDF' : 'JPG')), 'success');
+      button.title = 'اسکرین‌شات نمای فعلی ذخیره شد';
+      if (side) showPaneToast(side, '✓ عکس صفحه ذخیره شد', 'success');
+      else showToast('✓ عکس صفحه ذخیره شد', 'success');
+
       setTimeout(() => {
         button.innerHTML = originalHtml;
-        button.title = 'ذخیره صفحه کامل به صورت JPG یا PDF';
-      }, 1800);
+        button.title = 'اسکرین‌شات واقعی از نمای فعلی';
+      }, 1600);
     } catch (error) {
-      alert('ذخیره صفحه انجام نشد: ' + (error?.message || error));
+      alert('گرفتن اسکرین‌شات انجام نشد: ' + (error?.message || error));
       button.innerHTML = originalHtml;
     } finally {
       button.disabled = false;
@@ -580,193 +572,9 @@
     }
   }
 
-  function recordingKey(webview) {
-    try { return String(webview.getWebContentsId()); } catch { return ''; }
-  }
-
-  function updateRecordingButton(button, webview) {
-    const active = recordingStates.has(recordingKey(webview));
-    button.classList.toggle('recording-active', active);
-    button.innerHTML = active
-      ? '<span class="record-stop-square"></span>'
-      : TOOL_ICONS.record;
-    button.title = active ? 'توقف ضبط ویدیو' : 'شروع ضبط ویدیوی همین صفحه';
-  }
-
-  async function enableRecordingCursor(webview) {
-    const script = `(() => {
-      try { window.__cafedeskRecorderCursorCleanup?.(); } catch {}
-      const cursor = document.createElement('div');
-      cursor.id = '__cafedesk_record_cursor';
-      cursor.style.cssText = [
-        'position:fixed','left:0','top:0','width:24px','height:24px',
-        'border:3px solid #18d7c2','border-radius:50%','box-sizing:border-box',
-        'transform:translate(-50%,-50%)','z-index:2147483647','pointer-events:none',
-        'box-shadow:0 0 0 3px rgba(24,215,194,.16),0 0 12px rgba(24,215,194,.5)',
-        'transition:border-color .08s,background .08s,transform .05s'
-      ].join(';');
-      document.documentElement.appendChild(cursor);
-
-      const move = (e) => {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top = e.clientY + 'px';
-      };
-      const down = () => {
-        cursor.style.borderColor = '#ff4f6d';
-        cursor.style.background = 'rgba(255,79,109,.28)';
-        cursor.style.transform = 'translate(-50%,-50%) scale(.78)';
-      };
-      const up = () => {
-        cursor.style.borderColor = '#18d7c2';
-        cursor.style.background = 'transparent';
-        cursor.style.transform = 'translate(-50%,-50%) scale(1)';
-      };
-      const click = (e) => {
-        const pulse = document.createElement('div');
-        pulse.style.cssText = [
-          'position:fixed','left:' + e.clientX + 'px','top:' + e.clientY + 'px',
-          'width:12px','height:12px','border:3px solid #ffd24f','border-radius:50%',
-          'transform:translate(-50%,-50%)','z-index:2147483646','pointer-events:none',
-          'transition:width .35s,height .35s,opacity .35s','opacity:1'
-        ].join(';');
-        document.documentElement.appendChild(pulse);
-        requestAnimationFrame(() => {
-          pulse.style.width = '48px';
-          pulse.style.height = '48px';
-          pulse.style.opacity = '0';
-        });
-        setTimeout(() => pulse.remove(), 420);
-      };
-
-      document.addEventListener('mousemove', move, true);
-      document.addEventListener('mousedown', down, true);
-      document.addEventListener('mouseup', up, true);
-      document.addEventListener('click', click, true);
-
-      window.__cafedeskRecorderCursorCleanup = () => {
-        document.removeEventListener('mousemove', move, true);
-        document.removeEventListener('mousedown', down, true);
-        document.removeEventListener('mouseup', up, true);
-        document.removeEventListener('click', click, true);
-        cursor.remove();
-        delete window.__cafedeskRecorderCursorCleanup;
-      };
-      return true;
-    })()`;
-    try { await webview.executeJavaScript(script, true); } catch {}
-  }
-
-  async function disableRecordingCursor(webview) {
-    try {
-      await webview.executeJavaScript('window.__cafedeskRecorderCursorCleanup?.(); true', true);
-    } catch {}
-  }
-
-  async function stopRecordingForWebview(webview) {
-    const key = recordingKey(webview);
-    const state = recordingStates.get(key);
-    if (!state) return null;
-
-    return new Promise((resolve) => {
-      state.resolveStop = resolve;
-      try {
-        state.recorder.stop();
-      } catch {
-        try { state.stream.getTracks().forEach((track) => track.stop()); } catch {}
-        disableRecordingCursor(webview);
-        recordingStates.delete(key);
-        resolve(null);
-      }
-    });
-  }
-
-  async function toggleRecording(webview, button, site) {
-    const key = recordingKey(webview);
-    if (!key) return;
-
-    if (recordingStates.has(key)) {
-      await stopRecordingForWebview(webview);
-      updateRecordingButton(button, webview);
-      return;
-    }
-
-    let fileInfo = null;
-    let stream = null;
-    try {
-      const sourceId = await window.cafeDesk.getMediaSourceId(Number(key));
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'tab',
-            chromeMediaSourceId: sourceId,
-            maxFrameRate: 60
-          }
-        }
-      });
-
-      const mimeType = [
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
-        'video/webm'
-      ].find((type) => MediaRecorder.isTypeSupported(type)) || '';
-
-      fileInfo = await window.cafeDesk.startRecordingFile(site?.name || hostLabel(webview.getURL()) || 'CafeDesk');
-      if (!fileInfo?.ok) throw new Error('فایل ضبط ساخته نشد.');
-      await enableRecordingCursor(webview);
-
-      const recorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType, videoBitsPerSecond: 10000000 } : { videoBitsPerSecond: 10000000 }
-      );
-
-      const state = {
-        recorder,
-        stream,
-        sessionId: fileInfo.sessionId,
-        queue: Promise.resolve(),
-        resolveStop: null
-      };
-      recordingStates.set(key, state);
-
-      recorder.addEventListener('dataavailable', (event) => {
-        if (!event.data || event.data.size <= 0) return;
-        state.queue = state.queue.then(async () => {
-          const bytes = await event.data.arrayBuffer();
-          await window.cafeDesk.appendRecordingChunk(state.sessionId, bytes);
-        });
-      });
-
-      recorder.addEventListener('stop', async () => {
-        try {
-          await state.queue;
-          await window.cafeDesk.finishRecordingFile(state.sessionId);
-        } catch {}
-        try { stream.getTracks().forEach((track) => track.stop()); } catch {}
-        await disableRecordingCursor(webview);
-        recordingStates.delete(key);
-        showToast('ویدیو ذخیره شد: ' + (fileInfo?.label || 'فایل ضبط'), 'success');
-        state.resolveStop?.(fileInfo);
-      });
-
-      recorder.start(1000);
-      updateRecordingButton(button, webview);
-    } catch (error) {
-      try { stream?.getTracks().forEach((track) => track.stop()); } catch {}
-      await disableRecordingCursor(webview);
-      if (fileInfo?.sessionId) {
-        try { await window.cafeDesk.abortRecordingFile(fileInfo.sessionId); } catch {}
-      }
-      recordingStates.delete(key);
-      updateRecordingButton(button, webview);
-      alert('ضبط صفحه شروع نشد: ' + (error?.message || error));
-    }
-  }
-
   const TOOL_ICONS = {
     print: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="18" cy="11" r="1" fill="currentColor"/></svg>',
     screenshot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5H5v3M16 5h3v3M8 19H5v-3M16 19h3v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="8" y="8" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
-    record: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 10 5-3v10l-5-3z" fill="currentColor"/></svg>'
   };
 
   function makePaneIconButton(kind, title, onClick) {
@@ -808,12 +616,8 @@
     });
 
     const print = makePaneIconButton('print', 'چاپ این صفحه', () => printWebview(webview));
-    const screenshot = makePaneIconButton('screenshot', 'ذخیره صفحه کامل به صورت JPG یا PDF', () => captureScreenshot(webview, screenshot, site));
+    const screenshot = makePaneIconButton('screenshot', 'اسکرین‌شات واقعی از نمای فعلی', () => captureScreenshot(webview, screenshot, site, side));
     screenshot.classList.add('screenshot-btn');
-
-    const record = makePaneIconButton('record', 'شروع ضبط ویدیوی همین صفحه', () => toggleRecording(webview, record, site));
-    record.classList.add('record-btn');
-    setTimeout(() => updateRecordingButton(record, webview), 0);
 
     const downloads = makePaneButton('⬇', 'پوشه دانلودها', () => {
       try { window.cafeDesk.openDownloads(); } catch {}
@@ -849,7 +653,7 @@
     const close = makePaneButton('×', 'بستن این پنل', () => closePane(side));
     close.classList.add('close-pane-btn');
 
-    actions.append(back, forward, reload, print, screenshot, record, downloads, zoomWrap, change, close);
+    actions.append(back, forward, reload, print, screenshot, downloads, zoomWrap, change, close);
     toolbar.append(titleWrap, actions);
 
     webview.addEventListener('did-start-loading', () => {
@@ -938,13 +742,17 @@
     webview.setAttribute('preload', GUEST_PRELOAD_URL);
     webview.setAttribute('src', url);
     webview.setAttribute('allowpopups', 'true');
-    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes');
+    webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,backgroundThrottling=no');
+    if (site?.kind === 'social') webview.setAttribute('useragent', SOCIAL_MOBILE_UA);
     webview.setAttribute('aria-label', site.name || hostLabel(url));
 
+    webview.addEventListener('did-start-loading', () => pane.host.classList.add('loading'));
     webview.addEventListener('dom-ready', () => {
       applySiteZoom(webview, getSiteZoom(site));
       syncSavedCredentials(webview);
     });
+    webview.addEventListener('did-stop-loading', () => pane.host.classList.remove('loading'));
+    webview.addEventListener('did-fail-load', () => pane.host.classList.remove('loading'));
 
     webview.addEventListener('did-navigate', (event) => {
       tab.url = event.url || tab.url;
@@ -1001,7 +809,6 @@
     if (!pane || index < 0) return;
 
     const [tab] = pane.tabs.splice(index, 1);
-    await stopRecordingForWebview(tab.webview);
     try { tab.webview.remove(); } catch {}
 
     if (!pane.tabs.length) {
@@ -1022,7 +829,6 @@
     if (!pane) return;
 
     (pane.tabs || []).forEach((tab) => {
-      stopRecordingForWebview(tab.webview);
       try { tab.webview.remove(); } catch {}
     });
 
@@ -1033,6 +839,10 @@
     const shell = document.createElement('div');
     shell.className = 'browser-shell';
 
+    const loadingBar = document.createElement('div');
+    loadingBar.className = 'pane-loading-bar';
+    loadingBar.setAttribute('aria-hidden', 'true');
+
     const tabbar = document.createElement('div');
     tabbar.className = 'pane-tabbar';
 
@@ -1042,12 +852,13 @@
     const frame = document.createElement('div');
     frame.className = 'webview-frame';
 
-    shell.append(tabbar, toolbarHost, frame);
+    shell.append(loadingBar, tabbar, toolbarHost, frame);
     pane.slot.append(shell);
 
     pane.tabs = [];
     pane.activeTabId = null;
     pane.shell = shell;
+    pane.loadingBar = loadingBar;
     pane.tabbar = tabbar;
     pane.toolbarHost = toolbarHost;
     pane.frame = frame;
@@ -1064,7 +875,6 @@
     if (!pane) return;
 
     (pane.tabs || []).forEach((tab) => {
-      stopRecordingForWebview(tab.webview);
       try { tab.webview.remove(); } catch {}
     });
 
@@ -1538,6 +1348,22 @@
       icon.className = 'print-file-icon ' + visual.className;
       icon.textContent = visual.icon;
 
+      if (!item.isDirectory && window.cafeDesk.getDownloadThumbnail) {
+        const loadThumb = () => window.cafeDesk.getDownloadThumbnail(item.path)
+          .then((thumb) => {
+            if (!thumb?.ok || !thumb.dataUrl || !row.isConnected) return;
+            const image = document.createElement('img');
+            image.className = 'print-file-thumbnail';
+            image.alt = '';
+            image.src = thumb.dataUrl;
+            icon.replaceChildren(image);
+            icon.classList.add('has-thumbnail');
+          })
+          .catch(() => {});
+        if ('requestIdleCallback' in window) requestIdleCallback(loadThumb, { timeout: 700 });
+        else setTimeout(loadThumb, 20 + index * 8);
+      }
+
       const name = document.createElement('strong');
       name.textContent = item.name;
       nameCell.append(icon, name);
@@ -1663,8 +1489,10 @@
 
   openSocialBtn.addEventListener('click', () => {
     socialDialog.showModal();
-    activateSocial(activeSocial);
-    prewarmSocialViews();
+    leavePrintFolderMode();
+    socialBrowserPanel?.classList.add('hidden');
+    socialTitle.textContent = activePane === 'right' ? 'انتخاب برای مرورگر راست' : 'انتخاب برای مرورگر چپ';
+    document.querySelectorAll('[data-social]').forEach((button) => button.classList.remove('active'));
   });
 
   closeSocialBtn.addEventListener('click', () => socialDialog.close());
@@ -1687,18 +1515,28 @@
   });
 
   document.querySelectorAll('[data-social]').forEach((button) => {
-    button.addEventListener('click', () => activateSocial(button.dataset.social));
+    button.addEventListener('click', () => {
+      const key = button.dataset.social;
+      const site = socialApps[key];
+      if (!site) return;
+      openSite(site, activePane);
+      socialDialog.close();
+    });
   });
 
   window.cafeDesk.onDownloadStatus?.((payload) => {
     if (!payload) return;
+    const paneMatch = tabByWebContentsId(payload.sourceId);
+    const paneSide = paneMatch?.side || null;
     if (payload.state === 'completed') {
-      showToast('✓ ذخیره شد: ' + (payload.filename || 'فایل'), 'success');
-      if (socialDialog?.classList.contains('folder-mode')) {
-        loadPrintFolder(currentPrintFolderPath || '');
-      }
+      const message = '✓ ذخیره شد: ' + (payload.filename || 'فایل');
+      if (paneSide) showPaneToast(paneSide, message, 'success');
+      else showToast(message, 'success');
+      if (socialDialog?.classList.contains('folder-mode')) loadPrintFolder(currentPrintFolderPath || '');
     } else if (payload.state === 'interrupted') {
-      showToast('ذخیره فایل کامل نشد: ' + (payload.filename || 'فایل'), 'error');
+      const message = 'ذخیره فایل کامل نشد: ' + (payload.filename || 'فایل');
+      if (paneSide) showPaneToast(paneSide, message, 'error');
+      else showToast(message, 'error');
     }
   });
 

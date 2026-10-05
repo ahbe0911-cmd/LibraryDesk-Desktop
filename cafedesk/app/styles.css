@@ -1784,3 +1784,24 @@ body.workspace-mode .page{
   .header-datetime span{font-size:8px}
   .top-actions{gap:4px}
 }
+
+
+/* ===== CafeDesk 1.0.12 supplied social icons ===== */
+.social-badge{
+  overflow:hidden!important;
+  padding:0!important;
+  background:#fff!important;
+  border:1px solid rgba(19,35,52,.12)!important;
+  box-shadow:0 5px 14px rgba(8,20,34,.15)!important;
+}
+.social-logo-image{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:inherit;
+}
+.social-nav-btn.active .social-badge{
+  transform:scale(1.04);
+  box-shadow:0 6px 18px rgba(8,20,34,.22)!important;
+}

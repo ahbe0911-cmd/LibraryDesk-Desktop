@@ -533,7 +533,11 @@
     cells.forEach((cell, index) => {
       const image = cell.querySelector('img');
       if (!image) return;
-      if (image.src !== printPreviewDataUrl) image.src = printPreviewDataUrl || '';
+      if (printPreviewDataUrl) {
+        if (image.src !== printPreviewDataUrl) image.src = printPreviewDataUrl;
+      } else {
+        image.removeAttribute('src');
+      }
       image.alt = index === 0 ? 'پیش‌نمایش صفحه برای چاپ' : '';
       image.style.filter = options.color ? 'none' : 'grayscale(1)';
       image.style.transform = 'scale(' + scale + ')';

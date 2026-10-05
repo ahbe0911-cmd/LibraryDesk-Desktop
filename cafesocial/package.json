@@ -1,0 +1,47 @@
+{
+  "name": "cafesocial",
+  "version": "1.0.0",
+  "description": "Standalone Persian social web workspace pinned to the right half of the monitor",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "ir.cafesocial.desktop",
+    "productName": "CafeSocial",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CafeSocial",
+      "artifactName": "CafeSocial-Setup-${version}-Win10-x64.${ext}"
+    }
+  }
+}

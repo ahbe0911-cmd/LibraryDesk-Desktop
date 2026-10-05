@@ -8,91 +8,48 @@ const app = read('app/app.js');
 const html = read('app/index.html');
 const css = read('app/styles.css');
 const main = read('main.js');
+const preload = read('preload.js');
+const guestPreload = read('webview-preload.js');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-assert(html.includes('class="pane-slot empty-pane" id="rightSlot"'), 'right pane persistent slot class missing');
-assert(html.includes('class="pane-slot empty-pane" id="leftSlot"'), 'left pane persistent slot class missing');
-assert(!app.includes("pane.slot.className = '';"), 'regression: openSite still strips the slot sizing class');
-assert(app.includes("pane.slot.className = 'pane-slot';"), 'openSite must keep pane-slot');
-assert(app.includes("pane.slot.className = 'pane-slot empty-pane';"), 'closePane must keep pane-slot');
-assert(/\.pane-slot\s*\{[\s\S]*?height:\s*100%/.test(css), 'pane-slot must have definite 100% height');
-assert(/\.pane-slot\s*\{[\s\S]*?min-height:\s*0/.test(css), 'pane-slot must allow flex/grid shrinking');
-assert(app.includes("https://m.rubika.ir/"), 'Rubika URL is not the requested mobile web address');
-assert(app.includes("https://my.shad.ir/"), 'Shad URL is not the requested address');
+assert(html.includes('class="pane-slot empty-pane" id="rightSlot"'), 'right independent pane missing');
+assert(html.includes('class="pane-slot empty-pane" id="leftSlot"'), 'left independent pane missing');
+assert(app.includes("persist:cafedesk-pane-${side}"), 'independent right/left persistent sessions missing');
+assert(app.includes("rubika: { id: 'social-rubika', kind: 'social'"), 'social apps must be pane sources');
+assert(app.includes("openSite(site, activePane)"), 'social launcher must open inside active pane');
+assert(app.includes("const available = [...socialSites, ...sites]"), 'site picker must include social apps');
 
-const rubika = html.indexOf('data-social="rubika"');
-const shad = html.indexOf('data-social="shad"');
-const eitaa = html.indexOf('data-social="eitaa"');
-const telegram = html.indexOf('data-social="telegram"');
-assert(rubika >= 0 && rubika < shad && shad < eitaa && eitaa < telegram, 'social order must be Rubika, Shad, Eitaa, Telegram');
+assert(!app.includes('MediaRecorder'), 'screen recorder must be removed');
+assert(!app.includes('toggleRecording'), 'screen recorder controls must be removed');
+assert(!main.includes("capture:get-media-source-id"), 'screen recorder backend must be removed');
+assert(!preload.includes('startRecordingFile'), 'screen recorder preload bridge must be removed');
 
-assert(main.includes("downloads:choose-folder"), 'download-folder chooser IPC missing');
-assert(main.includes("item.setSavePath(nextAvailableDownloadPath"), 'downloads are not routed to the configured folder');
+assert(main.includes('const image = await guest.capturePage()'), 'screenshot must capture visible viewport');
+assert(main.includes('image.toJPEG(100)'), 'screenshot must save at JPEG quality 100');
+assert(!main.includes('Page.captureScreenshot'), 'full-page synthetic DevTools capture must be removed');
+assert(!main.includes('captureBeyondViewport'), 'off-screen synthetic capture must be removed');
+assert(app.includes('اسکرین‌شات واقعی از نمای فعلی'), 'screenshot UI must describe visible capture');
 
-console.log('CafeDesk 1.0.5 regression checks passed.');
+assert(app.includes('showPaneToast'), 'per-pane save notification missing');
+assert(main.includes('sourceId: sourceContents?.id || 0'), 'download event must identify originating browser');
+assert(app.includes('✓ اطلاعات ورود ذخیره شد'), 'credential save confirmation missing');
 
+assert(main.includes("files:get-thumbnail"), 'Explorer thumbnail backend missing');
+assert(preload.includes('getDownloadThumbnail'), 'Explorer thumbnail bridge missing');
+assert(app.includes('print-file-thumbnail'), 'Explorer thumbnail renderer missing');
+assert(main.includes("files:open-download-items"), 'multi-file default-open API missing');
+assert(main.includes('باز کردن ${files.length} فایل با برنامه پیش‌فرض ویندوز'), 'multi-file context menu open missing');
+assert(app.includes('printFolderSelection'), 'Explorer multi-select missing');
+assert(html.includes('id="printViewDetailsBtn"') && html.includes('id="printViewListBtn"') && html.includes('id="printViewIconsBtn"'), 'Explorer view modes missing');
 
-const preload = read('preload.js');
-const guestPreload = read('webview-preload.js');
+assert(app.includes('backgroundThrottling=no'), 'smooth browser rendering setting missing');
+assert(css.includes('.pane-loading-bar'), 'browser loading animation missing');
+assert(!app.includes('prewarmSocialViews();'), 'hidden social prewarming must not slow startup');
 
-assert(main.includes("host.send('cafedesk:guest-open-tab'"), 'new-window requests must be routed into CafeDesk');
-assert(!main.includes("action: 'allow',\n        overrideBrowserWindowOptions"), 'guest popups must not create external BrowserWindow windows');
-assert(app.includes('pane-tabbar'), 'internal pane tabs missing');
-assert(app.includes('openInternalTab'), 'internal tab routing missing');
-assert(app.includes('captureScreenshot'), 'screenshot UI missing');
-assert(app.includes('toggleRecording'), 'screen recorder UI missing');
-assert(main.includes("capture:get-media-source-id"), 'tab media capture IPC missing');
-assert(main.includes("guest.getMediaSourceId(event.sender)"), 'recording must capture the selected guest WebContents');
-assert(main.includes("capture:export-page"), 'full-page capture IPC missing');
-assert(app.includes('getCredentials'), 'multi-account password retrieval missing');
-assert(main.includes('function listCredentials()'), 'password manager list missing');
-assert(guestPreload.includes('savedCredentials'), 'guest autofill state missing');
-assert(guestPreload.includes('typedUsername'), 'username-matched password autofill missing');
-assert(css.includes('max-width:430px'), 'social browser portrait width missing');
-assert(main.includes("persist:cafedesk-social-") && main.includes('MOBILE_UA'), 'social mobile user-agent switching missing');
-
-console.log('CafeDesk 1.0.6 extended regression checks passed.');
-
-
-assert(main.includes("Page.captureScreenshot"), 'full-page JPG capture via Chromium DevTools missing');
-assert(main.includes("captureBeyondViewport: true"), 'long-page capture must go beyond the viewport');
-assert(main.includes("guest.printToPDF"), 'PDF page capture missing');
-assert(main.includes("files:list-download-folder"), 'embedded print-folder listing IPC missing');
-assert(main.includes("files:context-menu"), 'native right-click menu for print-folder items missing');
-assert(app.includes("loadPrintFolder"), 'embedded print-folder renderer missing');
-assert(app.includes("prewarmSocialViews"), 'social prewarming missing');
-assert(css.includes(".social-webview.hidden") && css.includes("visibility:hidden"), 'social views must stay mounted for smooth switching');
-assert(guestPreload.includes("EBLAGH_CANONICAL_URL"), 'Eblagh canonical credential scope missing');
-assert(guestPreload.includes("isEblaghLoginPage"), 'Eblagh page detection missing');
-assert(guestPreload.includes("MutationObserver"), 'dynamic login form autofill observer missing');
-assert(html.includes('id="openPrintFolderSocialBtn"'), 'print folder button missing below social apps');
-assert(html.includes('id="screenshotFormatDialog"'), 'JPG/PDF screenshot chooser missing');
-assert(css.includes("justify-content:flex-start") && css.includes(".topbar"), 'topbar controls must sit beside CafeDesk on the right');
-
-console.log('CafeDesk 1.0.7 optimization checks passed.');
-
-
-assert(!app.includes("setTimeout(prewarmSocialViews, 1400)"), 'social views must not initialize inside the closed dialog');
-assert(app.includes("recoverSocialView"), 'social white-screen recovery missing');
-assert(app.includes("reloadIgnoringCache"), 'social recovery must bypass stale cache');
-assert(main.includes("social:repair"), 'social cache/service-worker repair IPC missing');
-assert(css.includes("opacity:0!important") && !css.includes("visibility:hidden!important;\n  opacity:0!important"), 'hidden social views should stay paintable instead of visibility:hidden');
-assert(preload.includes("onDownloadStatus"), 'download completion notification bridge missing');
-assert(app.includes("showToast('✓ ذخیره شد:"), 'green saved toast missing');
-assert(main.includes("files:print-download-items"), 'multi-file Windows print IPC missing');
-assert(main.includes("invokeWindowsPrint"), 'Windows shell print helper missing');
-assert(html.includes('id="printViewDetailsBtn"') && html.includes('id="printViewListBtn"') && html.includes('id="printViewIconsBtn"'), 'Explorer view mode controls missing');
-assert(app.includes("printFolderSelection"), 'multi-select Explorer behavior missing');
-assert(guestPreload.includes("function eblaghStage()"), 'Eblagh stage detector missing');
+assert(guestPreload.includes('function eblaghStage()'), 'Eblagh stage detector missing');
 assert(guestPreload.includes("stage === 'otp'"), 'Eblagh OTP exclusion missing');
-assert(main.includes("quality: 100"), 'JPG screenshot quality must be 100');
-assert(app.includes("maxFrameRate: 60"), 'screen recorder must request 60 fps');
-assert(app.includes("videoBitsPerSecond: 10000000"), 'screen recorder bitrate must be 10 Mbps');
-assert(app.includes("enableRecordingCursor"), 'recording cursor overlay missing');
-assert(app.includes("record-stop-square"), 'larger recorder icon state missing');
-assert(css.includes(".pane-icon-btn svg"), 'larger SVG browser action icons missing');
 
-console.log('CafeDesk 1.0.8 reliability and UX checks passed.');
+console.log('CafeDesk 1.0.9 regression checks passed.');

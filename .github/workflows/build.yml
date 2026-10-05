@@ -1,4 +1,4 @@
-name: Build LibraryDesk Desktop 1.0.17
+name: Build LibraryDesk Desktop 1.0.18
 
 on:
   push:
@@ -94,6 +94,20 @@ jobs:
           $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
           if ($pkg.version -ne "1.0.17") { throw "1.0.17 visual update did not update version" }
 
+      - name: Apply 1.0.18 browser tabs update
+        shell: pwsh
+        run: |
+          $payload = [Convert]::FromBase64String((Get-Content "updates\update-1.0.18.patch.gz.b64" -Raw))
+          $input = New-Object IO.MemoryStream(,$payload)
+          $gzip = New-Object IO.Compression.GZipStream($input,[IO.Compression.CompressionMode]::Decompress)
+          $output = [IO.File]::Create("update-1.0.18.patch")
+          $gzip.CopyTo($output)
+          $output.Dispose(); $gzip.Dispose(); $input.Dispose()
+          git apply --directory=build-src --whitespace=nowarn "update-1.0.18.patch"
+          if ($LASTEXITCODE -ne 0) { throw "1.0.18 browser patch failed" }
+          $pkg = Get-Content "build-src\package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "1.0.18") { throw "1.0.18 version update failed" }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -126,13 +140,13 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.17-Setup-Win10-x64
-          path: build-src/dist/LibraryDesk-Setup-1.0.17-Win10-x64.exe
+          name: LibraryDesk-1.0.18-Setup-Win10-x64
+          path: build-src/dist/LibraryDesk-Setup-1.0.18-Win10-x64.exe
           if-no-files-found: error
 
       - name: Upload unpacked portable
         uses: actions/upload-artifact@v4
         with:
-          name: LibraryDesk-1.0.17-Portable-Win10-x64
+          name: LibraryDesk-1.0.18-Portable-Win10-x64
           path: build-src/dist/win-unpacked/**
           if-no-files-found: error

@@ -45,7 +45,7 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.12</span>
+      <span class="version" id="versionText">v1.0.13</span>
     </div>
 
     <div class="header-datetime" aria-live="polite">
@@ -178,14 +178,14 @@
 
           <input id="calcDisplay" class="calc-display" value="0" readonly />
           <div class="calc-keys" id="calcKeys">
-            <button data-calc="C">C</button>
+            <button data-calc="C">پاک</button>
             <button data-calc="⌫">⌫</button>
             <button data-calc="%">%</button>
             <button class="op" data-calc="÷">÷</button>
-            <button data-calc="7">7</button><button data-calc="8">8</button><button data-calc="9">9</button><button class="op" data-calc="×">×</button>
-            <button data-calc="4">4</button><button data-calc="5">5</button><button data-calc="6">6</button><button class="op" data-calc="-">−</button>
-            <button data-calc="1">1</button><button data-calc="2">2</button><button data-calc="3">3</button><button class="op" data-calc="+">+</button>
-            <button data-calc="0" class="wide">0</button><button data-calc=".">.</button><button class="equal" data-calc="=">=</button>
+            <button data-calc="7">۷</button><button data-calc="8">۸</button><button data-calc="9">۹</button><button class="op" data-calc="×">×</button>
+            <button data-calc="4">۴</button><button data-calc="5">۵</button><button data-calc="6">۶</button><button class="op" data-calc="-">−</button>
+            <button data-calc="1">۱</button><button data-calc="2">۲</button><button data-calc="3">۳</button><button class="op" data-calc="+">+</button>
+            <button data-calc="0" class="wide">۰</button><button data-calc=".">٫</button><button class="equal" data-calc="=">=</button>
           </div>
         </article>
 
@@ -233,6 +233,144 @@
           </button>
         </article>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="printDialog" class="print-dialog">
+    <div class="print-dialog-shell">
+      <section class="print-preview-side">
+        <div class="print-preview-toolbar">
+          <strong>پیش‌نمایش چاپ</strong>
+          <span id="printSheetCount">در حال آماده‌سازی…</span>
+        </div>
+        <div class="print-preview-stage">
+          <div class="print-paper-preview">
+            <img id="printPreviewImage" alt="پیش‌نمایش صفحه برای چاپ" />
+            <div id="printPreviewPlaceholder" class="print-preview-placeholder">
+              <span class="print-preview-spinner"></span>
+              <strong>در حال ساخت پیش‌نمایش…</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="print-settings-side">
+        <div class="print-settings-head">
+          <div>
+            <span>چاپ</span>
+            <small id="printDocumentTitle">صفحه فعلی</small>
+          </div>
+          <button id="closePrintDialogBtn" type="button" aria-label="بستن">×</button>
+        </div>
+
+        <label class="print-field">
+          <span>چاپگر</span>
+          <select id="printDestination"></select>
+        </label>
+
+        <label class="print-field">
+          <span>صفحات</span>
+          <select id="printPagesMode">
+            <option value="all">همه صفحات</option>
+            <option value="custom">صفحات دلخواه</option>
+          </select>
+        </label>
+
+        <label id="printCustomPagesWrap" class="print-field hidden">
+          <span>محدوده صفحات</span>
+          <input id="printCustomPages" dir="ltr" inputmode="text" placeholder="1-3, 5" />
+        </label>
+
+        <label class="print-field">
+          <span>تعداد نسخه</span>
+          <input id="printCopies" type="number" min="1" max="99" value="1" />
+        </label>
+
+        <div class="print-more-title">
+          <strong>تنظیمات بیشتر</strong>
+          <span>⌃</span>
+        </div>
+
+        <label class="print-field">
+          <span>اندازه کاغذ</span>
+          <select id="printPaperSize">
+            <option value="A4" selected>A4</option>
+            <option value="A3">A3</option>
+            <option value="A5">A5</option>
+            <option value="Letter">Letter</option>
+            <option value="Legal">Legal</option>
+          </select>
+        </label>
+
+        <label class="print-field">
+          <span>صفحه در هر برگ</span>
+          <select id="printPagesPerSheet">
+            <option value="1" selected>۱</option>
+            <option value="2">۲</option>
+            <option value="4">۴</option>
+            <option value="6">۶</option>
+            <option value="9">۹</option>
+            <option value="16">۱۶</option>
+          </select>
+        </label>
+
+        <label class="print-field">
+          <span>مقیاس</span>
+          <select id="printScale">
+            <option value="80">۸۰٪</option>
+            <option value="90">۹۰٪</option>
+            <option value="100" selected>۱۰۰٪ — متناسب با ناحیه چاپ</option>
+            <option value="110">۱۱۰٪</option>
+            <option value="125">۱۲۵٪</option>
+            <option value="150">۱۵۰٪</option>
+          </select>
+        </label>
+
+        <label class="print-field">
+          <span>رنگ</span>
+          <select id="printColor">
+            <option value="color" selected>رنگی</option>
+            <option value="gray">سیاه‌وسفید</option>
+          </select>
+        </label>
+
+        <label class="print-field">
+          <span>جهت</span>
+          <select id="printOrientation">
+            <option value="portrait" selected>عمودی</option>
+            <option value="landscape">افقی</option>
+          </select>
+        </label>
+
+        <label class="print-check-row">
+          <input id="printDuplex" type="checkbox" />
+          <span>چاپ دورو</span>
+        </label>
+
+        <label id="printDuplexEdgeWrap" class="print-field print-sub-field hidden">
+          <span>نوع ورق‌زدن</span>
+          <select id="printDuplexEdge">
+            <option value="longEdge" selected>لبه بلند</option>
+            <option value="shortEdge">لبه کوتاه</option>
+          </select>
+        </label>
+
+        <label class="print-field">
+          <span>حاشیه</span>
+          <select id="printMargins">
+            <option value="printableArea" selected>متناسب با ناحیه قابل چاپ</option>
+            <option value="default">پیش‌فرض</option>
+            <option value="none">بدون حاشیه</option>
+          </select>
+        </label>
+
+        <div class="print-action-row">
+          <button id="confirmPrintBtn" class="print-primary-btn" type="button">چاپ</button>
+          <button id="cancelPrintBtn" class="print-secondary-btn" type="button">انصراف</button>
+        </div>
+
+        <button id="systemPrintDialogBtn" class="print-system-link" type="button">باز کردن پنجره چاپ سیستم…</button>
+      </aside>
     </div>
   </dialog>
 

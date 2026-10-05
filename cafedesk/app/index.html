@@ -21,7 +21,7 @@
 
     <div class="top-actions">
       <button id="showDashboardBtn" class="ghost-btn active" type="button">خانه</button>
-      <button id="showWorkspaceBtn" class="ghost-btn" type="button">مرورگر</button>
+      <button id="showWorkspaceBtn" class="ghost-btn" type="button">دو پنجره</button>
       <button id="openToolsBtn" class="ghost-btn tools-top-btn" type="button">ابزارها</button>
       <button id="openSocialBtn" class="ghost-btn social-top-btn" type="button">شبکه‌های اجتماعی</button>
 
@@ -45,52 +45,18 @@
         </select>
       </div>
 
-      <span class="version" id="versionText">v1.0.10</span>
+      <span class="version" id="versionText">v1.0.11</span>
+    </div>
+
+    <div class="header-datetime" aria-live="polite">
+      <strong id="digitalClock">--:--:--</strong>
+      <span id="jalaliDateText">—</span>
     </div>
   </header>
 
   <main class="page">
     <section id="dashboardView" class="dashboard-view">
       <div class="hero-grid">
-        <aside class="left-rail">
-          <section class="clock-card glass">
-            <div class="clock-head">
-              <div>
-                <div class="section-kicker">ساعت و تقویم</div>
-                <strong>امروز</strong>
-              </div>
-              <span class="clock-live-dot" aria-hidden="true"></span>
-            </div>
-
-            <div class="clock-shell" aria-label="ساعت آنالوگ">
-              <div class="clock">
-                <span class="tick-ring"></span>
-                <span class="num n12">12</span><span class="num n1">1</span><span class="num n2">2</span>
-                <span class="num n3">3</span><span class="num n4">4</span><span class="num n5">5</span>
-                <span class="num n6">6</span><span class="num n7">7</span><span class="num n8">8</span>
-                <span class="num n9">9</span><span class="num n10">10</span><span class="num n11">11</span>
-                <span id="hourHand" class="hand hour"></span>
-                <span id="minuteHand" class="hand minute"></span>
-                <span id="secondHand" class="hand second"></span>
-                <span class="clock-pin"></span>
-              </div>
-            </div>
-
-            <div id="jalaliDateText" class="jalali-date">—</div>
-
-            <div class="calendar-panel">
-              <div class="calendar-title-row">
-                <strong id="calendarMonthTitle">—</strong>
-                <span id="calendarYearTitle">—</span>
-              </div>
-              <div class="calendar-weekdays" aria-hidden="true">
-                <span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span>
-              </div>
-              <div id="calendarGrid" class="calendar-grid"></div>
-            </div>
-          </section>
-        </aside>
-
         <section class="sites-card glass">
           <div class="section-head sites-head">
             <div>
@@ -114,13 +80,14 @@
     </section>
 
     <section id="workspaceView" class="workspace-view hidden">
+      <button id="closeWorkspaceBtn" class="close-workspace-btn" type="button" title="بستن کامل دو پنجره">× بستن دو پنجره</button>
       <div class="dual-shell">
         <section class="pane-host active-pane" data-pane="right">
           <div class="pane-slot empty-pane" id="rightSlot" data-empty-side="right">
             <div class="empty-pane-inner">
               <span class="empty-plus">＋</span>
-              <strong>نیمه راست آماده مرورگر است</strong>
-              <small>برای باز کردن سایت در این نیمه کلیک کنید</small>
+              <strong>پنجره راست خالی است</strong>
+              <small>برای انتخاب سایت پنجره راست کلیک کنید</small>
             </div>
           </div>
         </section>
@@ -131,8 +98,8 @@
           <div class="pane-slot empty-pane" id="leftSlot" data-empty-side="left">
             <div class="empty-pane-inner">
               <span class="empty-plus">＋</span>
-              <strong>نیمه چپ آماده مرورگر است</strong>
-              <small>برای انتقال مرورگر به این نیمه کلیک کنید</small>
+              <strong>پنجره چپ خالی است</strong>
+              <small>برای انتخاب سایت پنجره چپ کلیک کنید</small>
             </div>
           </div>
         </section>
@@ -311,10 +278,6 @@
             <span class="social-badge telegram">ت</span>
             <span><strong>تلگرام</strong><small>Telegram Web</small></span>
           </button>
-          <button id="openPrintFolderSocialBtn" class="social-nav-btn print-folder-nav" type="button">
-            <span class="social-badge print-folder">چ</span>
-            <span><strong>چاپ</strong><small>پوشه پیش‌فرض فایل‌ها</small></span>
-          </button>
         </nav>
 
         <section id="socialBrowserPanel" class="social-browser">
@@ -344,33 +307,7 @@
           </div>
         </section>
 
-        <section id="printFolderPanel" class="print-folder-panel hidden" tabindex="0">
-          <div class="print-folder-bar">
-            <div class="print-folder-title">
-              <span class="social-badge print-folder small">چ</span>
-              <div>
-                <strong>پوشه چاپ</strong>
-                <small id="printFolderPath">—</small>
-              </div>
-            </div>
-            <div class="print-folder-actions">
-              <div class="print-view-switch" aria-label="نوع نمایش فایل‌ها">
-                <button id="printViewDetailsBtn" class="active" type="button" title="جزئیات">☷</button>
-                <button id="printViewListBtn" type="button" title="فهرست">≡</button>
-                <button id="printViewIconsBtn" type="button" title="آیکون‌های بزرگ">▦</button>
-              </div>
-              <span id="printSelectedCount" class="print-selected-count">۰ انتخاب</span>
-              <button id="printFolderBackBtn" type="button" title="پوشه قبلی">↑</button>
-              <button id="refreshPrintFolderBtn" type="button">↻ تازه‌سازی</button>
-              <button id="openPrintFolderWindowsBtn" type="button">باز کردن در ویندوز</button>
-            </div>
-          </div>
-          <div id="printFolderColumns" class="print-folder-columns">
-            <span>نام</span><span>نوع</span><span>حجم</span><span>تاریخ تغییر</span>
-          </div>
-          <div id="printFolderList" class="print-folder-list"></div>
-          <div id="printFolderEmpty" class="print-folder-empty hidden">این پوشه خالی است.</div>
-        </section>
+
       </div>
     </div>
   </dialog>

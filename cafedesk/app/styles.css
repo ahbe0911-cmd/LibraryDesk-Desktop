@@ -1451,3 +1451,229 @@ body.workspace-mode .page{
   width:34px;height:28px;border-radius:6px
 }
 .print-file-row{content-visibility:auto;contain-intrinsic-size:46px}
+
+
+/* ===== CafeDesk 1.0.10: separate social phone + single 50% browser ===== */
+
+/* Keep the browser workspace as two equal 50% zones, but app logic allows only one occupied browser. */
+.dual-shell{
+  grid-template-columns:minmax(0,1fr) 4px minmax(0,1fr)!important;
+}
+
+/* Social apps are completely separate from browser panes and render inside a phone frame. */
+.social-dialog{
+  width:min(790px,calc(100% - 18px))!important;
+}
+.social-dialog-card{
+  height:min(900px,calc(100vh - 18px))!important;
+}
+.social-dialog:not(.folder-mode) .social-layout{
+  grid-template-columns:150px minmax(330px,430px)!important;
+  justify-content:center!important;
+  align-items:stretch!important;
+  gap:14px!important;
+}
+.social-dialog:not(.folder-mode) .social-nav{
+  display:flex!important;
+  flex-direction:column!important;
+  width:150px!important;
+  gap:7px!important;
+  padding:6px!important;
+}
+.social-dialog:not(.folder-mode) .social-nav-btn{
+  width:100%!important;
+  min-height:62px!important;
+}
+.social-dialog:not(.folder-mode) .print-folder-nav{
+  margin-top:auto!important;
+}
+.social-dialog:not(.folder-mode) .social-browser{
+  display:flex!important;
+  justify-content:center!important;
+  align-items:center!important;
+  width:100%!important;
+  min-width:0!important;
+  max-height:none!important;
+  padding:3px 0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+}
+
+.iphone18-frame{
+  position:relative;
+  width:min(100%,390px);
+  height:min(760px,calc(100vh - 150px));
+  min-height:540px;
+  padding:7px;
+  border-radius:52px;
+  background:
+    linear-gradient(145deg,#d9dce0 0%,#8d939b 12%,#2a2f36 28%,#11151b 58%,#7d838a 84%,#d9dce0 100%);
+  box-shadow:
+    0 28px 60px rgba(2,12,24,.34),
+    inset 0 0 0 1px rgba(255,255,255,.58),
+    inset 0 0 0 3px rgba(0,0,0,.42);
+}
+.iphone18-frame::before{
+  content:"";
+  position:absolute;
+  inset:3px;
+  border-radius:49px;
+  border:1px solid rgba(255,255,255,.2);
+  pointer-events:none;
+}
+.iphone18-screen{
+  position:relative;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  border-radius:45px;
+  background:#fff;
+  border:1px solid rgba(0,0,0,.75);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.iphone18-dynamic-island{
+  position:absolute;
+  z-index:70;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  width:106px;
+  height:29px;
+  border-radius:999px;
+  background:#020305;
+  box-shadow:0 2px 9px rgba(0,0,0,.34);
+  pointer-events:none;
+}
+.iphone18-camera{
+  position:absolute;
+  top:9px;
+  right:12px;
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#253d62,#08101c 55%,#020306);
+  box-shadow:inset 0 0 0 1px rgba(92,133,194,.22);
+}
+.iphone18-home-indicator{
+  position:absolute;
+  z-index:70;
+  bottom:7px;
+  left:50%;
+  transform:translateX(-50%);
+  width:110px;
+  height:4px;
+  border-radius:999px;
+  background:rgba(5,8,12,.78);
+  pointer-events:none;
+}
+.iphone18-action-button,
+.iphone18-volume-button{
+  position:absolute;
+  left:-3px;
+  z-index:2;
+  width:4px;
+  border-radius:3px 0 0 3px;
+  background:linear-gradient(180deg,#747a82,#22272e);
+  box-shadow:-1px 0 1px rgba(0,0,0,.3);
+}
+.iphone18-action-button{top:94px;height:36px}
+.iphone18-volume-button.top{top:148px;height:62px}
+.iphone18-volume-button.bottom{top:222px;height:62px}
+
+.iphone18-screen .social-browser-bar{
+  flex:none;
+  height:58px!important;
+  padding:29px 13px 6px!important;
+  border-radius:0!important;
+  background:linear-gradient(180deg,#f7fafc,#edf3f8)!important;
+  border-bottom:1px solid #dce5ed!important;
+}
+.iphone18-screen .social-browser-bar strong{
+  font-size:10px!important;
+  color:#17314a!important;
+}
+.iphone18-screen .social-reload-btn{
+  height:24px!important;
+  padding:0 8px!important;
+  border-radius:8px!important;
+  font-size:8px!important;
+}
+.iphone18-screen .social-webview-host{
+  flex:1!important;
+  min-height:0!important;
+  width:100%!important;
+  height:auto!important;
+  background:#fff!important;
+}
+.iphone18-screen .social-webview{
+  width:100%!important;
+  height:100%!important;
+  border:0!important;
+}
+.iphone18-screen .social-status-overlay{
+  inset:58px 0 0!important;
+  border-radius:0!important;
+}
+.social-phone-toast{
+  position:absolute;
+  z-index:90;
+  top:50px;
+  left:50%;
+  transform:translate(-50%,-12px);
+  opacity:0;
+  pointer-events:none;
+  width:max-content;
+  max-width:82%;
+  padding:7px 12px;
+  border-radius:13px;
+  background:rgba(226,255,239,.98);
+  border:1px solid rgba(36,176,104,.36);
+  color:#087445;
+  box-shadow:0 9px 25px rgba(0,0,0,.18);
+  font:800 9px/1.6 Vazirmatn,Arial,sans-serif;
+  text-align:center;
+  transition:.18s ease;
+}
+.social-phone-toast.show{
+  opacity:1;
+  transform:translate(-50%,0);
+}
+.social-phone-toast.error{
+  background:rgba(255,236,239,.98);
+  border-color:rgba(227,65,85,.36);
+  color:#a92b3b;
+}
+
+/* Exact persisted zoom controls. */
+.pane-zoom{
+  display:flex!important;
+  align-items:center!important;
+  gap:3px!important;
+}
+.pane-zoom .zoom-step-btn{
+  min-width:24px!important;
+  width:24px!important;
+  height:25px!important;
+  padding:0!important;
+  border-radius:7px!important;
+  font-size:14px!important;
+  font-weight:900!important;
+}
+.pane-zoom select{
+  min-width:54px!important;
+}
+
+/* One occupied browser only: the empty half remains ready for the next site. */
+.pane-host:has(.browser-shell){
+  width:100%;
+}
+
+/* Responsive phone fit */
+@media (max-height:760px){
+  .iphone18-frame{height:600px;min-height:500px;border-radius:44px}
+  .iphone18-screen{border-radius:38px}
+}

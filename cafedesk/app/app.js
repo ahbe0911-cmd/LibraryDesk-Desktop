@@ -491,6 +491,13 @@
     try { if (!url) url = webview.getURL() || ''; } catch {}
     if (!/^https?:/i.test(url) || !password) return;
 
+    let isEblaghCredential = false;
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      isEblaghCredential = host === 'adliran.ir' || host.endsWith('.adliran.ir');
+    } catch {}
+    if (isEblaghCredential && data?.verified !== true) return;
+
     let existing = [];
     try { existing = await window.cafeDesk.getCredentials(url); } catch {}
     if (existing.some((entry) => entry.username === username && entry.password === password)) return;

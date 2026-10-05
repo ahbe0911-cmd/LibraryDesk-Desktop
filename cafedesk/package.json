@@ -1,7 +1,7 @@
 {
   "name": "cafedesk",
-  "version": "1.0.12",
-  "description": "CafeDesk - Persian dual-browser internet-cafe desktop with supplied social icons, verified Eblagh credential saving, separate iPhone-style social apps, persistent zoom and lossless screenshots",
+  "version": "1.0.13",
+  "description": "CafeDesk - Persian dual-browser desktop with Chrome-style print controls, quiet social apps, colorful Jalali date, Persian keyboard calculator and smoother Eblagh PDF viewing",
   "main": "main.js",
   "private": true,
   "scripts": {

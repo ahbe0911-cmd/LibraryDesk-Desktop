@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const APP_NAME = 'CafeSocial';
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const UPDATE_API = 'https://api.github.com/repos/ahbe0911-cmd/LibraryDesk-Desktop/releases?per_page=30';
 const SETTINGS_FILE = 'settings.json';
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
@@ -115,10 +115,29 @@ function showSocialContextMenu(contents,params){
     t.push({label:'کپی',role:'copy',accelerator:'Ctrl+C'});
     t.push({label:'انتخاب همه',role:'selectAll',accelerator:'Ctrl+A'});
   }
-  if(params.linkURL && /^https?:/i.test(params.linkURL)){
+  const mediaUrl = String(params.srcURL || '');
+  const linkUrl = String(params.linkURL || '');
+
+  if(params.mediaType === 'image' && /^(https?:|blob:|data:)/i.test(mediaUrl)){
     if(t.length)t.push({type:'separator'});
-    t.push({label:'باز کردن لینک',click:()=>contents.loadURL(params.linkURL).catch(()=>{})});
-    t.push({label:'کپی آدرس لینک',click:()=>clipboard.writeText(params.linkURL)});
+    t.push({
+      label:'دانلود تصویر',
+      click:()=>{ try { contents.downloadURL(mediaUrl); } catch {} }
+    });
+    t.push({
+      label:'کپی تصویر',
+      role:'copyImage'
+    });
+  }
+
+  if(linkUrl && /^(https?:|blob:)/i.test(linkUrl)){
+    if(t.length)t.push({type:'separator'});
+    t.push({label:'باز کردن لینک',click:()=>contents.loadURL(linkUrl).catch(()=>{})});
+    t.push({
+      label:'دانلود فایل / لینک',
+      click:()=>{ try { contents.downloadURL(linkUrl); } catch {} }
+    });
+    t.push({label:'کپی آدرس لینک',click:()=>clipboard.writeText(linkUrl)});
   }
   if(t.length)t.push({type:'separator'});
   t.push({label:'بارگذاری مجدد',role:'reload'});

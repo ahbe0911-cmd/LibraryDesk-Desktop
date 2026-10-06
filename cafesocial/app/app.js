@@ -12,13 +12,15 @@
   const openFolderBtn=$('openFolderBtn');
   const folderLabel=$('folderLabel');
   const pinRightBtn=$('pinRightBtn');
+  const checkUpdateBtn=$('checkUpdateBtn');
+  const updateText=$('updateText');
   const toast=$('toast');
 
   const apps={
     rubika:{name:'روبیکا',url:'https://m.rubika.ir/'},
     shad:{name:'شاد',url:'https://my.shad.ir/'},
     eitaa:{name:'ایتا',url:'https://web.eitaa.com/'},
-    telegram:{name:'تلگرام',url:'https://web.telegram.org/k/'}
+    telegram:{name:'تلگرام',url:'https://velogram.app/web/'}
   };
   const views=new Map();
   const health=new Map();
@@ -109,6 +111,31 @@
   });
   pinRightBtn.addEventListener('click',()=>window.cafeSocial.pinRight());
 
+  async function checkUpdates(silent=false){
+    if(!checkUpdateBtn)return;
+    checkUpdateBtn.disabled=true;
+    const old=updateText?.textContent || '';
+    if(updateText)updateText.textContent='در حال بررسی…';
+    try{
+      const result=await window.cafeSocial.checkForUpdates();
+      if(result?.updateAvailable){
+        checkUpdateBtn.classList.add('available');
+        if(updateText)updateText.textContent='نسخه '+result.latestVersion+' آماده است';
+        checkUpdateBtn.onclick=()=>window.cafeSocial.openUpdate(result.downloadUrl || result.releaseUrl);
+        if(!silent)showToast('✓ نسخه جدید CafeSocial آماده دانلود است');
+      }else{
+        checkUpdateBtn.classList.remove('available');
+        if(updateText)updateText.textContent=result?.ok?'برنامه به‌روز است':'بررسی بروزرسانی';
+        if(!silent && result?.ok)showToast('✓ جدیدترین نسخه نصب است');
+      }
+    }catch{
+      if(updateText)updateText.textContent=old || 'بررسی بروزرسانی';
+    }finally{
+      checkUpdateBtn.disabled=false;
+    }
+  }
+  checkUpdateBtn?.addEventListener('click',()=>checkUpdates(false));
+
   window.cafeSocial.onDownloadStatus((payload)=>{
     if(payload?.state==='completed') showToast('✓ دانلود شد: '+(payload.filename || 'فایل'));
     else if(payload?.state==='interrupted') showToast('دانلود کامل نشد','error');
@@ -121,5 +148,6 @@
 
   refreshFolder();
   activate('rubika');
+  setTimeout(()=>checkUpdates(true),3500);
   setTimeout(()=>['shad','eitaa','telegram'].forEach((key,index)=>setTimeout(()=>{const v=ensureView(key);v.classList.add('hidden');},1000+index*900)),1200);
 })();

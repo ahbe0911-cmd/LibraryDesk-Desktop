@@ -1,16 +1,18 @@
 {
   "name": "cafesocial",
-  "version": "1.0.0",
-  "description": "Standalone Persian social web workspace pinned to the right half of the monitor",
+  "version": "1.0.1",
+  "description": "Standalone Persian social web workspace with CafeDesk-style phone UI, native browser context menu, fixed downloads and update checking",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --x64"
+    "icon": "node scripts/make-icon.js",
+    "dist": "npm run icon && electron-builder --win nsis --x64"
   },
   "devDependencies": {
     "electron": "44.5.1",
-    "electron-builder": "26.0.12"
+    "electron-builder": "26.0.12",
+    "sharp": "0.34.4"
   },
   "build": {
     "appId": "ir.cafesocial.desktop",
@@ -23,6 +25,7 @@
       "main.js",
       "preload.js",
       "app/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "win": {
@@ -33,7 +36,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,

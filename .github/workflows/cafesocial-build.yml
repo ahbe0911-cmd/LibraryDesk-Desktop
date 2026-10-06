@@ -1,4 +1,4 @@
-name: Build CafeSocial 1.0.0
+name: Build CafeSocial 1.0.1
 
 on:
   push:
@@ -8,14 +8,68 @@ on:
       - '.github/workflows/cafesocial-build.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
     defaults:
       run:
         working-directory: cafesocial
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare Persian fonts
+        shell: pwsh
+        working-directory: .
+        run: |
+          New-Item -ItemType Directory -Force -Path "cafesocial\app\fonts" | Out-Null
+
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf" -OutFile "cafesocial\app\fonts\Vazirmatn-Regular.ttf"
+
+          $expectedNaz = "f9abfdc13d9e7f72b2cf4cf7efc8d2cd578ddd1ac0ac6d971e2d8a133566e176"
+          $nazCandidates = @(
+            "https://raw.githubusercontent.com/mohammadhasananisi/personal_accountant/26f09ce3e414f5d6293f47296ab0dfd9af283d7e/assets/fonts/Far_Nazanin.ttf",
+            "https://raw.githubusercontent.com/Soutehkeshan/Transaction-Journal/357bd53b2a923281750a6681c9aa8668faa1c7a6/resources/fonts/Far_Nazanin.ttf",
+            "https://raw.githubusercontent.com/pishnahadebehtar/Sport_News_Website/8fd3bb4a913670c52db3b047e1e6f7d3927c2d24/public/font/Far_Nazanin.ttf"
+          )
+          $nazFound = $false
+          foreach ($url in $nazCandidates) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile "naz.tmp" -ErrorAction Stop
+              $hash = (Get-FileHash "naz.tmp" -Algorithm SHA256).Hash.ToLower()
+              if ($hash -eq $expectedNaz) {
+                Move-Item "naz.tmp" "cafesocial\app\fonts\Far_Nazanin.ttf" -Force
+                $nazFound = $true
+                break
+              }
+              Remove-Item "naz.tmp" -Force -ErrorAction SilentlyContinue
+            } catch {}
+          }
+          if (!$nazFound) { throw "Exact Far_Nazanin font was not found" }
+
+          $expectedTitr = "be7aab09aec062c744235625ffc821e0964a4d12353ba11e5cfe0314a0f35ec4"
+          $titrCandidates = @(
+            "https://raw.githubusercontent.com/negin-amiri/my-dijikala-clone/a4eead8038bb56a38bc01ec8836b0b169415ebae/fonts/titr/Far_TitrBd.ttf",
+            "https://raw.githubusercontent.com/fahimahmadi/ak_hospital_front/4d25d3712a000c61c5c5d7181d758cbfaa0272f0/src/assets/fonts/Far_TitrBd.ttf",
+            "https://raw.githubusercontent.com/nadi1368/hesabro-helpers/abde6259495221f13f9daada7cbfc2921e68ce74/src/assets/css/fonts/Far_TitrBd.ttf"
+          )
+          $titrFound = $false
+          foreach ($url in $titrCandidates) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile "titr.tmp" -ErrorAction Stop
+              $hash = (Get-FileHash "titr.tmp" -Algorithm SHA256).Hash.ToLower()
+              if ($hash -eq $expectedTitr) {
+                Move-Item "titr.tmp" "cafesocial\app\fonts\Far_TitrBd.ttf" -Force
+                $titrFound = $true
+                break
+              }
+              Remove-Item "titr.tmp" -Force -ErrorAction SilentlyContinue
+            } catch {}
+          }
+          if (!$titrFound) { throw "Exact Far_TitrBd font was not found" }
 
       - uses: actions/setup-node@v4
         with:
@@ -31,6 +85,7 @@ jobs:
           node --check main.js
           node --check preload.js
           node --check app/app.js
+          node --check scripts/make-icon.js
 
       - name: Build Windows installer
         run: npm run dist
@@ -38,15 +93,31 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: CafeSocial-1.0.0-Setup-Win10-x64
-          path: cafesocial/dist/CafeSocial-Setup-1.0.0-Win10-x64.exe
+          name: CafeSocial-1.0.1-Setup-Win10-x64
+          path: cafesocial/dist/CafeSocial-Setup-1.0.1-Win10-x64.exe
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Portable
         uses: actions/upload-artifact@v4
         with:
-          name: CafeSocial-1.0.0-Portable-Win10-x64
+          name: CafeSocial-1.0.1-Portable-Win10-x64
           path: cafesocial/dist/win-unpacked/**
           if-no-files-found: error
           retention-days: 90
+
+      - name: Publish CafeSocial update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cafesocial-v1.0.1
+          name: CafeSocial 1.0.1
+          body: |
+            CafeSocial 1.0.1
+            - CafeDesk-style social layout and Persian fonts
+            - Telegram switched to Velogram Web
+            - Native right-click browser menu in chats
+            - New application icon
+            - Persistent fixed download folder
+            - Built-in update checker
+          make_latest: false
+          files: cafesocial/dist/CafeSocial-Setup-1.0.1-Win10-x64.exe

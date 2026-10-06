@@ -9,6 +9,7 @@ const SETTINGS_FILE = 'settings.json';
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 let mainWindow = null;
 const configuredPartitions = new Set();
+const SOCIAL_KEYS = ['rubika','shad','eitaa','telegram'];
 
 function settingsPath() {
   return path.join(app.getPath('userData'), SETTINGS_FILE);
@@ -125,9 +126,37 @@ function showSocialContextMenu(contents,params){
   Menu.buildFromTemplate(t).popup({window:BrowserWindow.fromWebContents(contents.hostWebContents || contents) || undefined});
 }
 
+function applyLockedDownloadPathToSession(ses) {
+  const folder = selectedDownloadFolder();
+  if (!folder || !ses) return false;
+  try { fs.mkdirSync(folder,{recursive:true}); } catch {}
+  try {
+    ses.setDownloadPath(folder);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function applyLockedDownloadPathToAllSocialSessions() {
+  const folder = selectedDownloadFolder();
+  if (!folder) return;
+  for (const key of SOCIAL_KEYS) {
+    try {
+      const ses = session.fromPartition('persist:cafesocial-' + key);
+      applyLockedDownloadPathToSession(ses);
+    } catch {}
+  }
+}
+
 function configureSocialSession(ses){
   let partition='';
   try { partition=ses.getPartition() || 'default'; } catch { partition='default'; }
+
+  // Always refresh the Chromium-level download directory, even for an
+  // already configured social session. This mirrors Chrome's fixed download
+  // folder behavior and suppresses Save As after the user chooses the folder.
+  applyLockedDownloadPathToSession(ses);
+
   if(configuredPartitions.has(partition)) return;
   configuredPartitions.add(partition);
 
@@ -149,7 +178,9 @@ function configureSocialSession(ses){
       try { host?.send('cafesocial:download-needs-folder', {filename:item.getFilename()}); } catch {}
       return;
     }
-    try { item.setSavePath(nextAvailable(folder,item.getFilename())); } catch {}
+    const lockedPath = nextAvailable(folder,item.getFilename());
+    try { item.setSavePath(lockedPath); } catch {}
+    try { item.savePath = lockedPath; } catch {}
     item.once('done',(_e,state)=>{
       const host=sourceContents?.hostWebContents || sourceContents;
       try {
@@ -199,6 +230,12 @@ function createWindow(){
 }
 app.whenReady().then(()=>{
   app.setName(APP_NAME);
+  // Configure all persistent social sessions before any webview starts.
+  // This prevents Chromium from ever falling back to its Save As prompt.
+  for (const key of SOCIAL_KEYS) {
+    try { configureSocialSession(session.fromPartition('persist:cafesocial-' + key)); } catch {}
+  }
+  applyLockedDownloadPathToAllSocialSessions();
   createWindow();
   app.on('activate',()=>{if(!mainWindow) createWindow();});
 });
@@ -235,6 +272,11 @@ ipcMain.handle('downloads:choose-folder',async(event)=>{
   const settings=readSettings();
   settings.downloadFolder=result.filePaths[0];
   writeSettings(settings);
+
+  // Apply immediately to every social session. The user should never have to
+  // restart CafeSocial after choosing the download folder.
+  applyLockedDownloadPathToAllSocialSessions();
+
   return {ok:true,canceled:false,...folderInfo()};
 });
 ipcMain.handle('downloads:open',async()=>{

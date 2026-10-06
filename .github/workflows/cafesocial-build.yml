@@ -1,4 +1,4 @@
-name: Build CafeSocial 1.0.1
+name: Build CafeSocial 1.0.2
 
 on:
   push:
@@ -93,15 +93,15 @@ jobs:
       - name: Upload Setup
         uses: actions/upload-artifact@v4
         with:
-          name: CafeSocial-1.0.1-Setup-Win10-x64
-          path: cafesocial/dist/CafeSocial-Setup-1.0.1-Win10-x64.exe
+          name: CafeSocial-1.0.2-Setup-Win10-x64
+          path: cafesocial/dist/CafeSocial-Setup-1.0.2-Win10-x64.exe
           if-no-files-found: error
           retention-days: 90
 
       - name: Upload Portable
         uses: actions/upload-artifact@v4
         with:
-          name: CafeSocial-1.0.1-Portable-Win10-x64
+          name: CafeSocial-1.0.2-Portable-Win10-x64
           path: cafesocial/dist/win-unpacked/**
           if-no-files-found: error
           retention-days: 90
@@ -109,15 +109,16 @@ jobs:
       - name: Publish CafeSocial update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: cafesocial-v1.0.1
-          name: CafeSocial 1.0.1
+          tag_name: cafesocial-v1.0.2
+          name: CafeSocial 1.0.2
           body: |
-            CafeSocial 1.0.1
+            CafeSocial 1.0.2
             - CafeDesk-style social layout and Persian fonts
             - Telegram switched to Velogram Web
             - Native right-click browser menu in chats
             - New application icon
-            - Persistent fixed download folder
+            - Download folder locked at Chromium session level with no Save As after selection
+            - Right-click image/file downloads use the same locked folder
             - Built-in update checker
           make_latest: false
-          files: cafesocial/dist/CafeSocial-Setup-1.0.1-Win10-x64.exe
+          files: cafesocial/dist/CafeSocial-Setup-1.0.2-Win10-x64.exe

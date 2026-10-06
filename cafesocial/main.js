@@ -1,8 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, session, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session, screen, Menu, clipboard, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 const APP_NAME = 'CafeSocial';
+const APP_VERSION = '1.0.1';
+const UPDATE_API = 'https://api.github.com/repos/ahbe0911-cmd/LibraryDesk-Desktop/releases?per_page=30';
 const SETTINGS_FILE = 'settings.json';
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 let mainWindow = null;
@@ -45,6 +47,84 @@ function nextAvailable(folder, filename) {
   }
   return path.join(folder,`${stem}-${Date.now()}${ext}`);
 }
+function parseCafeSocialVersion(tag) {
+  const match = String(tag || '').match(/^cafesocial-v(\d+)\.(\d+)\.(\d+)$/i);
+  return match ? match.slice(1).map(Number) : null;
+}
+function compareVersion(a,b){
+  for(let i=0;i<3;i++){ if((a[i]||0)!==(b[i]||0)) return (a[i]||0)-(b[i]||0); }
+  return 0;
+}
+async function checkForUpdates(){
+  try{
+    const response=await net.fetch(UPDATE_API,{headers:{'User-Agent':'CafeSocial/'+APP_VERSION,'Accept':'application/vnd.github+json'}});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const releases=await response.json();
+    const current=APP_VERSION.split('.').map(Number);
+    const candidates=(Array.isArray(releases)?releases:[])
+      .map(r=>({release:r,version:parseCafeSocialVersion(r.tag_name)}))
+      .filter(x=>x.version)
+      .sort((a,b)=>compareVersion(b.version,a.version));
+    const latest=candidates[0];
+    if(!latest) return {ok:true,updateAvailable:false,currentVersion:APP_VERSION};
+    const updateAvailable=compareVersion(latest.version,current)>0;
+    const asset=(latest.release.assets||[]).find(a=>/^CafeSocial-Setup-.*-Win10-x64\.exe$/i.test(a.name));
+    return {
+      ok:true,
+      updateAvailable,
+      currentVersion:APP_VERSION,
+      latestVersion:latest.version.join('.'),
+      downloadUrl:asset?.browser_download_url || latest.release.html_url || '',
+      releaseUrl:latest.release.html_url || ''
+    };
+  }catch(error){
+    return {ok:false,updateAvailable:false,currentVersion:APP_VERSION,message:error?.message || String(error)};
+  }
+}
+function showSocialContextMenu(contents,params){
+  const t=[];
+  const edit=params.editFlags || {};
+  if(params.isEditable){
+    if(edit.canUndo)t.push({label:'واگرد',role:'undo',accelerator:'Ctrl+Z'});
+    if(edit.canRedo)t.push({label:'از نو',role:'redo',accelerator:'Ctrl+Y'});
+    if(t.length)t.push({type:'separator'});
+    if(edit.canCut)t.push({label:'برش',role:'cut',accelerator:'Ctrl+X'});
+    if(edit.canCopy)t.push({label:'کپی',role:'copy',accelerator:'Ctrl+C'});
+    if(edit.canPaste)t.push({label:'چسباندن',role:'paste',accelerator:'Ctrl+V'});
+    if(edit.canPaste){
+      t.push({
+        label:'چسباندن بدون قالب',
+        accelerator:'Ctrl+Shift+V',
+        click:()=>{try{contents.pasteAndMatchStyle();}catch{}}
+      });
+    }
+    t.push({
+      label:'ایموجی',
+      accelerator:'Super+.',
+      click:()=>{
+        try{
+          contents.focus();
+          contents.sendInputEvent({type:'keyDown',keyCode:'.',modifiers:['meta']});
+          contents.sendInputEvent({type:'keyUp',keyCode:'.',modifiers:['meta']});
+        }catch{}
+      }
+    });
+    if(edit.canSelectAll)t.push({label:'انتخاب همه',role:'selectAll',accelerator:'Ctrl+A'});
+  }else if(params.selectionText){
+    t.push({label:'کپی',role:'copy',accelerator:'Ctrl+C'});
+    t.push({label:'انتخاب همه',role:'selectAll',accelerator:'Ctrl+A'});
+  }
+  if(params.linkURL && /^https?:/i.test(params.linkURL)){
+    if(t.length)t.push({type:'separator'});
+    t.push({label:'باز کردن لینک',click:()=>contents.loadURL(params.linkURL).catch(()=>{})});
+    t.push({label:'کپی آدرس لینک',click:()=>clipboard.writeText(params.linkURL)});
+  }
+  if(t.length)t.push({type:'separator'});
+  t.push({label:'بارگذاری مجدد',role:'reload'});
+  t.push({label:'بررسی عنصر',click:()=>{try{contents.inspectElement(params.x,params.y);}catch{}}});
+  Menu.buildFromTemplate(t).popup({window:BrowserWindow.fromWebContents(contents.hostWebContents || contents) || undefined});
+}
+
 function configureSocialSession(ses){
   let partition='';
   try { partition=ses.getPartition() || 'default'; } catch { partition='default'; }
@@ -103,6 +183,7 @@ function createWindow(){
     autoHideMenuBar:true,
     title:APP_NAME,
     backgroundColor:'#eaf2f7',
+    icon:path.join(__dirname,'build','icon.png'),
     webPreferences:{
       preload:path.join(__dirname,'preload.js'),
       contextIsolation:true,
@@ -129,6 +210,7 @@ app.on('web-contents-created',(_event,contents)=>{
     if(partition.startsWith('persist:cafesocial-')){
       contents.setUserAgent(MOBILE_UA);
       configureSocialSession(contents.session);
+      contents.on('context-menu',(_event,params)=>showSocialContextMenu(contents,params));
       contents.setWindowOpenHandler(({url})=>{
         if(/^https?:/i.test(url)){
           contents.loadURL(url).catch(()=>{});
@@ -164,5 +246,14 @@ ipcMain.handle('downloads:open',async()=>{
 ipcMain.handle('window:right-half',()=>{
   if(!mainWindow) return {ok:false};
   mainWindow.setBounds(rightHalfBounds(),true);
+  return {ok:true};
+});
+
+
+ipcMain.handle('updates:check',()=>checkForUpdates());
+ipcMain.handle('updates:open',async(_event,url)=>{
+  const target=String(url||'');
+  if(!/^https:\/\/(github\.com|objects\.githubusercontent\.com|github-releases\.githubusercontent\.com)/i.test(target)) return {ok:false};
+  await shell.openExternal(target);
   return {ok:true};
 });

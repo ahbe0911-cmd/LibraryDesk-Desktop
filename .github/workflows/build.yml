@@ -301,9 +301,28 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
-      - name: Build Windows x64 Setup
+      - name: Build Windows x64 Setup (retry transient NSIS download errors)
         working-directory: build-src
-        run: npm run dist
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          $ErrorActionPreference = "Continue"
+          $maxAttempts = 4
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Installer build attempt $attempt of $maxAttempts"
+            npm run dist -- --publish never
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Installer build succeeded."
+              exit 0
+            }
+            if ($attempt -eq $maxAttempts) {
+              throw "Installer build failed after $maxAttempts attempts. Check NSIS download/network logs."
+            }
+            $delay = 20 * $attempt
+            Write-Warning "Build failed (exit $LASTEXITCODE). Retrying in $delay seconds."
+            Start-Sleep -Seconds $delay
+          }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
